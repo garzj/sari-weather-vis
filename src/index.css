@@ -1,0 +1,85 @@
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --border: #e3e5e9;
+  --text: #1f2430;
+  --muted: #6b7280;
+  --accent: #3b82f6;
+  --input-bg: #ffffff;
+  --border-strong: #c7ccd4;
+  /* chart chrome: axis text and gridlines */
+  --chart-ink: #555555;
+  --chart-grid: #e3e5e9;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+[data-theme="dark"] {
+  --bg: #16191f;
+  --panel: #21252e;
+  --border: #333945;
+  --accent: #5b9bf8;
+  --text: #e4e7ec;
+  --muted: #9aa1ad;
+  --input-bg: #2a2f3a;
+  --border-strong: #4a515f;
+  --chart-ink: #b8bdc8;
+  --chart-grid: #353b47;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa1ad' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+
+  color-scheme: dark;
+}
+
+/* animate theme color changes */
+body,
+.sidebar,
+.center,
+.tabs,
+.tab,
+.field select,
+.field input,
+.select-list select,
+.tooltip,
+.legend,
+.checkbox-box {
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.chart-wrap svg {
+  transition: color 0.3s ease;
+}
+
+.chart-wrap text,
+.chart-wrap .axis-line,
+.pie-arc,
+.splom .splom-frame,
+.splom .tick line {
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+button {
+  font-family: inherit;
+}
+
+select,
+input {
+  font-family: inherit;
+  font-size: 0.9rem;
+}
