@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
-import type { DailyRecord } from "../../data/load";
+import type { WeekRecord } from "../../data/load";
 import { METRICS, type MetricId } from "../../data/metrics";
 import { useMeasure } from "../../hooks/useMeasure";
 
 interface Props {
-  records: DailyRecord[];
+  records: WeekRecord[];
   enabled: MetricId[];
 }
 

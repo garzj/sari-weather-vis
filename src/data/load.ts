@@ -1,21 +1,55 @@
 import { dsvFormat, csvParse } from "d3";
 import type { MetricId } from "./metrics";
 
-// one day of merged weather + sari data for a state
-export interface DailyRecord {
+// one ISO week of merged weather + sari data for a state
+export interface WeekRecord {
+  // monday of the iso week, used for the time axis and seasons
   date: Date;
   state: string;
+  // unique key, "<state>|<year>-W<week>"
+  key: string;
   values: Partial<Record<MetricId, number>>;
 }
 
 export interface Dataset {
-  records: DailyRecord[];
-  // earliest and latest date in the weather data
+  records: WeekRecord[];
   minDate: Date;
   maxDate: Date;
 }
 
 const BASE = import.meta.env.BASE_URL;
+
+// location_id -> federal state. the federal_state column was removed from
+// weather-locations.csv, but the row order/coordinates are unchanged, so the
+// mapping is recovered by id.
+const LOCATION_STATE: Record<string, string> = {
+  "0": "BGL",
+  "1": "KTN",
+  "2": "NÖ",
+  "3": "OÖ",
+  "4": "SBG",
+  "5": "ST",
+  "6": "T",
+  "7": "V",
+  "8": "W",
+};
+
+// weather csv column -> metric, with an optional unit conversion factor
+const WEATHER_COLS: { col: string; id: MetricId; scale?: number }[] = [
+  { col: "temperature_2m_mean (°C)", id: "temperature" },
+  { col: "temperature_2m_max (°C)", id: "tempMax" },
+  { col: "temperature_2m_min (°C)", id: "tempMin" },
+  { col: "dew_point_2m_mean (°C)", id: "dewMean" },
+  { col: "dew_point_2m_max (°C)", id: "dewMax" },
+  { col: "dew_point_2m_min (°C)", id: "dewMin" },
+  { col: "relative_humidity_2m_mean (%)", id: "humidity" },
+  { col: "relative_humidity_2m_max (%)", id: "humidityMax" },
+  { col: "relative_humidity_2m_min (%)", id: "humidityMin" },
+  { col: "vapour_pressure_deficit_max (kPa)", id: "vpdMax" },
+  { col: "sunshine_duration (s)", id: "sunshine", scale: 1 / 3600 },
+];
+
+type SariKey = "covid" | "influenza" | "aufnahmen";
 
 // iso-8601 calendar week and week-year, matches austrian "KW"
 function isoWeek(date: Date): { year: number; week: number } {
@@ -31,6 +65,15 @@ function isoWeek(date: Date): { year: number; week: number } {
   return { year: d.getUTCFullYear(), week };
 }
 
+// monday (UTC) of the given iso week, used as the week's representative date
+function isoWeekStart(year: number, week: number): Date {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayNum = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - (dayNum - 1) + (week - 1) * 7);
+  return monday;
+}
+
 const weekKey = (year: number, week: number) => `${year}-W${week}`;
 
 // parse a sari "KW" label like "19. KW 2023"
@@ -40,37 +83,29 @@ function parseKw(label: string): { year: number; week: number } | null {
   return { week: Number(m[1]), year: Number(m[2]) };
 }
 
-interface WeeklySari {
-  covid: number;
-  influenza: number;
-  rsv: number;
-  pneumokokken: number;
-  sonstige: number;
-  aufnahmen: number;
-}
-
 async function fetchText(path: string): Promise<string> {
   const res = await fetch(path);
   if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
   return res.text();
 }
 
+interface WeatherAgg {
+  date: number;
+  state: string;
+  year: number;
+  week: number;
+  sums: Partial<Record<MetricId, number>>;
+  counts: Partial<Record<MetricId, number>>;
+}
+
 export async function loadDataset(): Promise<Dataset> {
-  const [sariText, weatherText, locText] = await Promise.all([
+  const [sariText, weatherText] = await Promise.all([
     fetchText(`${BASE}data/sari-data.csv`),
     fetchText(`${BASE}data/weather-data.csv`),
-    fetchText(`${BASE}data/weather-locations.csv`),
   ]);
 
-  // location_id -> federal state
-  const locById = new Map<string, string>();
-  csvParse(locText, (row) => {
-    locById.set(String(row.location_id), String(row.federal_state));
-    return null;
-  });
-
-  // sum sari weekly counts per state and week
-  const sariByKey = new Map<string, WeeklySari>();
+  // sum sari weekly counts per state and iso week
+  const sariByKey = new Map<string, Record<SariKey, number>>();
   dsvFormat(";").parse(sariText, (row) => {
     const kw = parseKw(row.KW ?? "");
     const state = row.WOHNORT;
@@ -78,73 +113,75 @@ export async function loadDataset(): Promise<Dataset> {
     const key = `${state}|${weekKey(kw.year, kw.week)}`;
     let agg = sariByKey.get(key);
     if (!agg) {
-      agg = {
-        covid: 0,
-        influenza: 0,
-        rsv: 0,
-        pneumokokken: 0,
-        sonstige: 0,
-        aufnahmen: 0,
-      };
+      agg = { covid: 0, influenza: 0, aufnahmen: 0 };
       sariByKey.set(key, agg);
     }
     agg.covid += +(row.COVID ?? 0);
     agg.influenza += +(row.INFLUENZA ?? 0);
-    agg.rsv += +(row.RSV ?? 0);
-    agg.pneumokokken += +(row.PNEUMOKOKKEN ?? 0);
-    agg.sonstige += +(row.SONSTIGE ?? 0);
     agg.aufnahmen += +(row.AUFNAHMEN ?? 0);
     return null;
   });
 
-  // build daily records from the weather data
-  const records: DailyRecord[] = [];
-  let minDate = Infinity;
-  let maxDate = -Infinity;
-
+  // aggregate daily weather into iso weeks per state
+  const weatherByKey = new Map<string, WeatherAgg>();
   csvParse(weatherText, (row) => {
-    const state = locById.get(String(row.location_id));
+    const state = LOCATION_STATE[String(row.location_id)];
     const timeStr = row.time;
     if (!state || !timeStr) return null;
     const date = new Date(`${timeStr}T00:00:00Z`);
-    const t = date.getTime();
-    if (Number.isNaN(t)) return null;
-    if (t < minDate) minDate = t;
-    if (t > maxDate) maxDate = t;
-
-    const num = (key: string) => {
-      const v = row[key];
-      return v === undefined || v === "" ? undefined : +v;
-    };
-    const daylight = num("daylight_duration (s)");
-
-    const values: Partial<Record<MetricId, number>> = {
-      sunHours: daylight === undefined ? undefined : daylight / 3600,
-      temperature: num("temperature_2m_mean (°C)"),
-      tempMax: num("temperature_2m_max (°C)"),
-      tempMin: num("temperature_2m_min (°C)"),
-      precipitation: num("precipitation_sum (mm)"),
-      rain: num("rain_sum (mm)"),
-      snowfall: num("snowfall_sum (cm)"),
-      precipitationHours: num("precipitation_hours (h)"),
-      windSpeed: num("wind_speed_10m_max (m/s)"),
-    };
-
-    // attach the week's sari counts as a per-day average
+    if (Number.isNaN(date.getTime())) return null;
     const wk = isoWeek(date);
-    const sari = sariByKey.get(`${state}|${weekKey(wk.year, wk.week)}`);
-    if (sari) {
-      values.covid = sari.covid / 7;
-      values.influenza = sari.influenza / 7;
-      values.rsv = sari.rsv / 7;
-      values.pneumokokken = sari.pneumokokken / 7;
-      values.sonstige = sari.sonstige / 7;
-      values.aufnahmen = sari.aufnahmen / 7;
-    }
+    const key = `${state}|${weekKey(wk.year, wk.week)}`;
 
-    records.push({ date, state, values });
+    let agg = weatherByKey.get(key);
+    if (!agg) {
+      agg = {
+        date: date.getTime(),
+        state,
+        year: wk.year,
+        week: wk.week,
+        sums: {},
+        counts: {},
+      };
+      weatherByKey.set(key, agg);
+    }
+    if (date.getTime() < agg.date) agg.date = date.getTime();
+
+    for (const { col, id, scale } of WEATHER_COLS) {
+      const raw = row[col];
+      if (raw === undefined || raw === "") continue;
+      const v = +raw * (scale ?? 1);
+      if (Number.isNaN(v)) continue;
+      agg.sums[id] = (agg.sums[id] ?? 0) + v;
+      agg.counts[id] = (agg.counts[id] ?? 0) + 1;
+    }
     return null;
   });
+
+  // build one record per state-week from the weather weeks
+  const records: WeekRecord[] = [];
+  let minDate = Infinity;
+  let maxDate = -Infinity;
+
+  for (const [key, agg] of weatherByKey) {
+    const values: Partial<Record<MetricId, number>> = {};
+    for (const { id } of WEATHER_COLS) {
+      const count = agg.counts[id];
+      if (count) values[id] = (agg.sums[id] as number) / count;
+    }
+    const sari = sariByKey.get(key);
+    if (sari) {
+      values.covid = sari.covid;
+      values.influenza = sari.influenza;
+      values.aufnahmen = sari.aufnahmen;
+    }
+
+    const date = isoWeekStart(agg.year, agg.week);
+    const t = date.getTime();
+    if (t < minDate) minDate = t;
+    if (t > maxDate) maxDate = t;
+    records.push({ date, state: agg.state, key, values });
+  }
 
   records.sort((a, b) => a.date.getTime() - b.date.getTime());
 

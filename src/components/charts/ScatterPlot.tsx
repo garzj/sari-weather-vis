@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import type { DailyRecord } from '../../data/load';
+import type { WeekRecord } from '../../data/load';
 import { METRICS, type MetricId } from '../../data/metrics';
 import { useMeasure } from '../../hooks/useMeasure';
 import {
@@ -11,11 +11,14 @@ import {
 } from '../../utils/date';
 
 interface Props {
-  records: DailyRecord[];
+  records: WeekRecord[];
   columns: MetricId[];
+  // brushed records become the global filter; null means "no brush / all"
+  onSelect: (records: WeekRecord[] | null) => void;
 }
 
 interface Point {
+  rec: WeekRecord;
   season: Season;
   values: Partial<Record<MetricId, number>>;
   // pre-computed pixel position per column, NaN when missing
@@ -25,7 +28,7 @@ interface Point {
 
 const PADDING = 28;
 
-export function ScatterPlot({ records, columns }: Props) {
+export function ScatterPlot({ records, columns, onSelect }: Props) {
   const [wrapRef, size] = useMeasure<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -43,6 +46,7 @@ export function ScatterPlot({ records, columns }: Props) {
     const cellSize = (width - (n + 1) * PADDING) / n + PADDING;
 
     const points: Point[] = records.map((r) => ({
+      rec: r,
       season: seasonOf(r.date),
       values: r.values,
       cx: [],
@@ -178,11 +182,15 @@ export function ScatterPlot({ records, columns }: Props) {
       rafId = 0;
       if (!pending) return;
       const { x0, y0, x1, y1, i, j } = pending;
+      const selected: WeekRecord[] = [];
       circle.classed('hidden', (p) => {
         const px = p.cx[i];
         const py = p.cy[j];
-        return x0 > px || x1 < px || y0 > py || y1 < py;
+        const out = x0 > px || x1 < px || y0 > py || y1 < py;
+        if (!out) selected.push(p.rec);
+        return out;
       });
+      onSelect(selected);
     };
 
     const brush = d3
@@ -216,7 +224,9 @@ export function ScatterPlot({ records, columns }: Props) {
           rafId = 0;
         }
         pending = null;
+        activeKey = null;
         circle.classed('hidden', false);
+        onSelect(null);
       });
 
     cell.call(brush);
@@ -243,7 +253,7 @@ export function ScatterPlot({ records, columns }: Props) {
       .text((d) => METRICS[d].label);
 
     return () => cleanup();
-  }, [records, columns, size]);
+  }, [records, columns, size, onSelect]);
 
   return (
     <div className='chart-wrap splom' ref={wrapRef}>

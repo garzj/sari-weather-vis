@@ -1,428 +1,100 @@
+/* desktop grid: fixed left column + 3 columns of equal tiles over two rows */
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr 260px;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 300px 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   grid-template-areas:
-    "left tabs  right"
-    "left chart right";
+    "intro   upload  map      scatter"
+    "options line    weather  empty";
+  gap: 12px;
+  padding: 12px;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
 }
 
-.sidebar-left {
-  grid-area: left;
+.tile-intro {
+  grid-area: intro;
+}
+.tile-options {
+  grid-area: options;
+}
+.tile-upload {
+  grid-area: upload;
+}
+.tile-map {
+  grid-area: map;
+}
+.tile-scatter {
+  grid-area: scatter;
+}
+.tile-line {
+  grid-area: line;
+}
+.tile-weather {
+  grid-area: weather;
+}
+.tile-empty {
+  grid-area: empty;
 }
 
-.sidebar-right {
-  grid-area: right;
-}
-
-.tabs-wrap {
-  grid-area: tabs;
-}
-
-.chart-area {
-  grid-area: chart;
-}
-
-/* sidebars */
-.sidebar {
+/* card shell shared by every tile */
+.tile {
   background: var(--panel);
-  padding: 24px 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* tiles whose content (lists) can exceed the height */
+.tile-intro,
+.tile-options,
+.tile-upload {
   overflow-y: auto;
 }
 
-.sidebar-left {
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
+.tile-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--text);
 }
 
-.sidebar-right {
-  border-left: 1px solid var(--border);
+/* charts fill the remaining tile space */
+.tile-body {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
+.tile-empty {
+  border-style: dashed;
+}
+
+/* intro tile */
 .app-title {
-  font-size: 1.45rem;
+  font-size: 1.3rem;
   font-weight: 650;
   margin: 0 0 12px;
   line-height: 1.2;
 }
 
 .app-desc {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--muted);
   line-height: 1.5;
-  margin: 0 0 28px;
+  margin: 0;
 }
 
-.filters {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.field select,
-.field input,
-.select-list select {
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--input-bg);
-  color: var(--text);
-  width: 100%;
-  transition: border-color 0.15s ease, background-color 0.3s ease;
-}
-
-.field select:hover,
-.field input:hover,
-.select-list select:hover {
-  border-color: var(--border-strong);
-}
-
-.field select:focus,
-.field input:focus,
-.select-list select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* custom chevron for native selects */
-.field select,
-.select-list select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 30px;
-  background-image: var(--select-chevron);
-  background-repeat: no-repeat;
-  background-position: right 11px center;
-}
-
-.date-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.date-row input {
-  flex: 1;
-  min-width: 0;
-}
-
-.date-row input::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 0.65;
-}
-
-.date-sep {
-  color: var(--muted);
-}
-
-/* right sidebar options */
-.options-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin: 0 0 22px;
-  text-align: center;
-}
-
-.checkbox-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.checkbox-row input {
-  display: none;
-}
-
-.checkbox-box {
-  width: 19px;
-  height: 19px;
-  border-radius: 5px;
-  border: 2px solid;
-  flex-shrink: 0;
-}
-
-.checkbox-label {
-  user-select: none;
-}
-
-.select-list {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.options-empty {
-  color: var(--muted);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.options-hint {
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.5;
-  margin: 0 0 18px;
-}
-
-/* center panel + tabs */
-.tabs-wrap {
-  min-width: 0;
-  padding: 18px 12px 0;
-}
-
-.tabs-compact {
-  display: none;
-}
-
-.tabs {
-  display: flex;
-  position: relative;
-  width: 100%;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.tab {
-  flex: 1;
-  position: relative;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 10px 8px 13px;
-  font-size: 0.95rem;
-  font-weight: 550;
-  color: var(--muted);
-  transition: color 0.15s ease;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.tab.active {
-  color: var(--text);
-}
-
-.tab-underline {
-  position: absolute;
-  left: 0;
-  bottom: -1px;
-  height: 2.5px;
-  display: flex;
-  justify-content: center;
-  transition: transform 0.28s ease;
-  pointer-events: none;
-}
-
-.tab-underline-bar {
-  width: calc(100% - 28px);
-  height: 100%;
-  border-radius: 2px;
-  background: var(--accent);
-}
-
-/* compact tab switcher for mobile */
-.tabs-compact {
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 16px;
-}
-
-.tabs-compact-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.tab-arrow {
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--input-bg);
-  color: var(--text);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.tab-arrow:hover {
-  border-color: var(--border-strong);
-}
-
-.chart-area {
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.chart-pane {
-  position: absolute;
-  inset: 0 12px 18px;
-}
-
-/* charts */
-.chart-wrap {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.chart-wrap svg {
-  display: block;
-  /* currentColor drives d3 axis domain + tick lines */
-  color: var(--chart-ink);
-}
-
-/* override the colors d3 sets on axis text so they follow the theme */
-.chart-wrap text {
-  fill: var(--chart-ink);
-}
-
-.chart-wrap .axis-line {
-  stroke: var(--chart-ink);
-}
-
-.pie-arc {
-  stroke: var(--panel);
-}
-
-.chart-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  text-align: center;
-}
-
-/* scatterplot matrix */
-.splom {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.splom svg {
-  max-width: 100%;
-  max-height: 100%;
-}
-
-.splom circle.hidden {
-  fill: var(--chart-grid) !important;
-  fill-opacity: 0.3;
-}
-
-.splom .splom-frame,
-.splom .tick line {
-  stroke: var(--chart-grid);
-}
-
-.legend {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  background: var(--panel);
-  padding: 6px 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.76rem;
-  color: var(--muted);
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend-swatch {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--muted);
-}
-
-.status-error {
-  color: #c0392b;
-}
-
-/* tooltip */
-.tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.8rem;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  z-index: 10;
-}
-
-.tooltip-swatch {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-.tooltip-value {
-  color: var(--muted);
-}
-
-.tooltip-meta {
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-/* sidebar footer */
 .app-footer {
   margin-top: auto;
+  padding-top: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -434,7 +106,6 @@
   display: block;
 }
 
-/* theme toggle */
 .theme-toggle {
   position: relative;
   width: 40px;
@@ -461,82 +132,246 @@
   justify-content: center;
 }
 
-/* risk tab: controls left, gauge right */
-.risk-layout {
+/* options tile (line graph checkboxes) */
+.options-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.checkbox-list {
   display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.checkbox-row input {
+  display: none;
+}
+
+.checkbox-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+.checkbox-label {
+  user-select: none;
+}
+
+/* fields and inputs */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.field input {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text);
+  width: 100%;
+  transition: border-color 0.15s ease, background-color 0.3s ease;
+}
+
+.field input:hover {
+  border-color: var(--border-strong);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.date-row input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.date-sep {
+  color: var(--muted);
+}
+
+/* upload tile */
+.upload-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+
+.upload-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.upload-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: not-allowed;
+}
+
+.upload-files {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-file {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.upload-file-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.upload-file-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* map tile */
+.map-wrap {
+  position: relative;
   width: 100%;
   height: 100%;
-  gap: 28px;
+}
+
+.map-state {
+  stroke: var(--panel);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: fill-opacity 0.15s ease, stroke 0.15s ease;
+}
+
+.map-state:hover {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.map-state.dimmed {
+  fill-opacity: 0.4;
+}
+
+.map-state.selected {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  filter: saturate(1.8);
+  fill-opacity: 1;
+}
+
+.map-caption {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  padding: 4px 6px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* weather analysis tile */
+.weather-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  gap: 18px;
   align-items: center;
 }
 
-.risk-controls {
+.weather-controls {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 26px;
+  gap: 16px;
 }
 
-.risk-controls .slider-field {
-  width: 100%;
-  max-width: 280px;
-}
-
-.risk-fetch {
-  width: 100%;
-  max-width: 280px;
-  margin-top: 4px;
-  padding: 10px 14px;
-  border: 1px solid var(--accent);
-  border-radius: 9px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
-}
-
-.risk-fetch:hover {
-  filter: brightness(1.07);
-}
-
-.risk-fetch:disabled {
-  opacity: 0.85;
-  cursor: default;
-}
-
-.spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  vertical-align: -3px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.risk-fetch-error {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.risk-gauge {
+.weather-result {
   flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-/* risk parameter sliders */
+.weather-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-stat-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.weather-stat-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.weather-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* sliders */
 .slider-field .field-label {
   display: flex;
   justify-content: space-between;
@@ -587,85 +422,157 @@
   border: 2px solid var(--panel);
 }
 
-/* mobile: stack everything in a single column */
-@media (max-width: 768px) {
-  html,
-  body,
-  #root {
-    height: auto;
-    min-height: 100%;
-  }
+.risk-fetch {
+  margin-top: 4px;
+  padding: 9px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
 
-  .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
-    grid-template-areas:
-      "left"
-      "tabs"
-      "right"
-      "chart";
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-  }
+.risk-fetch:hover {
+  filter: brightness(1.07);
+}
 
-  .sidebar {
-    overflow-y: visible;
-  }
+.risk-fetch:disabled {
+  opacity: 0.85;
+  cursor: default;
+}
 
-  .sidebar-left {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: -3px;
+}
 
-  .sidebar-right {
-    border-left: none;
-    border-bottom: 1px solid var(--border);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
+}
 
-  /* icons move to the very top of the left sidebar */
-  .app-footer {
-    order: -1;
-    margin-top: 0;
-    margin-bottom: 20px;
-  }
+.risk-fetch-error {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
 
-  /* swap the full tab row for the compact arrow switcher */
-  .tabs {
-    display: none;
-  }
+/* charts */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
 
-  .tabs-compact {
-    display: flex;
-  }
+.chart-wrap svg {
+  display: block;
+  color: var(--chart-ink);
+}
 
-  .tabs-wrap {
-    padding: 16px 16px 0;
-  }
+.chart-wrap text {
+  fill: var(--chart-ink);
+}
 
-  .chart-area {
-    min-height: 78vh;
-  }
+.chart-wrap .axis-line {
+  stroke: var(--chart-ink);
+}
 
-  .chart-pane {
-    inset: 0 16px 18px;
-  }
+/* scatterplot matrix */
+.splom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  /* risk view stacks its controls above the gauge */
-  .risk-layout {
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 0;
-  }
+.splom svg {
+  max-width: 100%;
+  max-height: 100%;
+}
 
-  .risk-controls {
-    flex: 0 0 auto;
-    width: 100%;
-  }
+.splom circle.hidden {
+  fill: var(--chart-grid) !important;
+  fill-opacity: 0.3;
+}
 
-  .risk-gauge {
-    flex: 1 1 auto;
-    width: 100%;
-    min-height: 280px;
-  }
+.splom .splom-frame,
+.splom .tick line {
+  stroke: var(--chart-grid);
+}
+
+.legend {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--panel);
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+/* tooltip */
+.tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.tooltip-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tooltip-value {
+  color: var(--muted);
+}
+
+/* status (loading / error) */
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--muted);
+}
+
+.status-error {
+  color: #c0392b;
 }

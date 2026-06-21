@@ -1,22 +1,21 @@
 // registry of every data attribute shown in the app
 export type MetricId =
-  // sari metrics, weekly source shown as per-day averages
-  | "influenza"
+  // sari metrics, weekly counts
   | "covid"
-  | "rsv"
-  | "pneumokokken"
-  | "sonstige"
+  | "influenza"
   | "aufnahmen"
-  // weather metrics, daily source
-  | "sunHours"
+  // weather metrics, weekly averages of the daily source
   | "temperature"
   | "tempMax"
   | "tempMin"
-  | "precipitation"
-  | "rain"
-  | "snowfall"
-  | "precipitationHours"
-  | "windSpeed";
+  | "dewMean"
+  | "dewMax"
+  | "dewMin"
+  | "humidity"
+  | "humidityMax"
+  | "humidityMin"
+  | "vpdMax"
+  | "sunshine";
 
 export type MetricSource = "sari" | "weather";
 
@@ -29,74 +28,36 @@ export interface MetricMeta {
   source: MetricSource;
   // line and legend color
   color: string;
-  // bin width when binned on a categorical axis
-  binSize: number;
 }
 
 export const METRICS: Record<MetricId, MetricMeta> = {
-  influenza: {
-    id: "influenza",
-    label: "Severe influenza cases",
-    unit: "cases/day",
-    source: "sari",
-    color: "#59a14f",
-    binSize: 1,
-  },
   covid: {
     id: "covid",
     label: "Covid cases",
-    unit: "cases/day",
+    unit: "cases/week",
     source: "sari",
     color: "#e15759",
-    binSize: 1,
   },
-  rsv: {
-    id: "rsv",
-    label: "RSV cases",
-    unit: "cases/day",
+  influenza: {
+    id: "influenza",
+    label: "Severe influenza cases",
+    unit: "cases/week",
     source: "sari",
-    color: "#b07aa1",
-    binSize: 1,
-  },
-  pneumokokken: {
-    id: "pneumokokken",
-    label: "Pneumococcal cases",
-    unit: "cases/day",
-    source: "sari",
-    color: "#ff9da7",
-    binSize: 1,
-  },
-  sonstige: {
-    id: "sonstige",
-    label: "Other infections",
-    unit: "cases/day",
-    source: "sari",
-    color: "#9c755f",
-    binSize: 1,
+    color: "#59a14f",
   },
   aufnahmen: {
     id: "aufnahmen",
-    label: "All admissions",
-    unit: "cases/day",
+    label: "All infections",
+    unit: "cases/week",
     source: "sari",
     color: "#76b7b2",
-    binSize: 1,
-  },
-  sunHours: {
-    id: "sunHours",
-    label: "Sun hours",
-    unit: "h",
-    source: "weather",
-    color: "#edc948",
-    binSize: 1,
   },
   temperature: {
     id: "temperature",
-    label: "Temperature",
+    label: "Average temperature",
     unit: "°C",
     source: "weather",
-    color: "#9c9c9c",
-    binSize: 10,
+    color: "#f28e2b",
   },
   tempMax: {
     id: "tempMax",
@@ -104,7 +65,6 @@ export const METRICS: Record<MetricId, MetricMeta> = {
     unit: "°C",
     source: "weather",
     color: "#bf6f6f",
-    binSize: 10,
   },
   tempMin: {
     id: "tempMin",
@@ -112,89 +72,92 @@ export const METRICS: Record<MetricId, MetricMeta> = {
     unit: "°C",
     source: "weather",
     color: "#6f8cbf",
-    binSize: 10,
   },
-  precipitation: {
-    id: "precipitation",
-    label: "Downfall intensity",
-    unit: "mm",
+  dewMean: {
+    id: "dewMean",
+    label: "Mean dew point",
+    unit: "°C",
     source: "weather",
     color: "#4e79a7",
-    binSize: 2,
   },
-  rain: {
-    id: "rain",
-    label: "Rain",
-    unit: "mm",
+  dewMax: {
+    id: "dewMax",
+    label: "Max dew point",
+    unit: "°C",
     source: "weather",
     color: "#5b9bd5",
-    binSize: 2,
   },
-  snowfall: {
-    id: "snowfall",
-    label: "Snowfall",
-    unit: "cm",
+  dewMin: {
+    id: "dewMin",
+    label: "Min dew point",
+    unit: "°C",
     source: "weather",
     color: "#a0cbe8",
-    binSize: 1,
   },
-  precipitationHours: {
-    id: "precipitationHours",
-    label: "Precipitation hours",
-    unit: "h",
+  humidity: {
+    id: "humidity",
+    label: "Average humidity",
+    unit: "%",
+    source: "weather",
+    color: "#2a9d8f",
+  },
+  humidityMax: {
+    id: "humidityMax",
+    label: "Max humidity",
+    unit: "%",
     source: "weather",
     color: "#86bcb6",
-    binSize: 2,
   },
-  windSpeed: {
-    id: "windSpeed",
-    label: "Wind speed",
-    unit: "m/s",
+  humidityMin: {
+    id: "humidityMin",
+    label: "Min humidity",
+    unit: "%",
     source: "weather",
-    color: "#8cd17d",
-    binSize: 2,
+    color: "#b6d7d2",
+  },
+  vpdMax: {
+    id: "vpdMax",
+    label: "Vapour pressure deficit",
+    unit: "kPa",
+    source: "weather",
+    color: "#b07aa1",
+  },
+  sunshine: {
+    id: "sunshine",
+    label: "Sunshine hours",
+    unit: "h",
+    source: "weather",
+    color: "#edc948",
   },
 };
 
-// lines toggleable in the line chart
-export const LINE_METRICS: MetricId[] = [
-  "covid",
-  "influenza",
-  "sunHours",
-  "precipitation",
-  "temperature",
-];
+// sari metrics shown in the line chart options
+export const SARI_METRICS: MetricId[] = ["covid", "influenza", "aufnahmen"];
 
-// sari metrics aggregatable as a per-day value
-export const AGGREGATE_VALUE_METRICS: MetricId[] = [
-  "influenza",
-  "covid",
-  "rsv",
-  "pneumokokken",
-  "sonstige",
-  "aufnahmen",
-];
-
-// weather metrics binnable into categories
-export const AGGREGATE_BIN_METRICS: MetricId[] = [
-  "sunHours",
+// weather metrics shown in the line chart options
+export const WEATHER_METRICS: MetricId[] = [
   "temperature",
   "tempMax",
   "tempMin",
-  "precipitation",
-  "windSpeed",
-  "snowfall",
+  "dewMean",
+  "dewMax",
+  "dewMin",
+  "humidity",
+  "humidityMax",
+  "humidityMin",
+  "vpdMax",
+  "sunshine",
 ];
 
-// variables selectable in the scatterplot matrix
+// lines toggleable in the line chart: sari first, then every weather field
+export const LINE_METRICS: MetricId[] = [...SARI_METRICS, ...WEATHER_METRICS];
+
+// fixed columns of the brushable scatterplot matrix
 export const SCATTER_METRICS: MetricId[] = [
-  "influenza",
-  "covid",
   "aufnahmen",
   "temperature",
-  "sunHours",
-  "precipitation",
-  "windSpeed",
+  "humidity",
+  "vpdMax",
 ];
 
 export const ALL_STATES = "ALL";

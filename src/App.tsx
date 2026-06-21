@@ -1,45 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { useDataset } from "./hooks/useDataset";
-import { LeftSidebar } from "./components/LeftSidebar";
-import { RightSidebar } from "./components/RightSidebar";
-import { Tabs } from "./components/Tabs";
-import { LineChart } from "./components/charts/LineChart";
-import { BarChart } from "./components/charts/BarChart";
-import { PieChart } from "./components/charts/PieChart";
+import { TopLeftCard } from "./components/TopLeftCard";
+import { OptionsCard } from "./components/OptionsCard";
+import { UploadCard } from "./components/UploadCard";
+import { AustriaMap } from "./components/charts/AustriaMap";
 import { ScatterPlot } from "./components/charts/ScatterPlot";
-import { RiskMeter } from "./components/charts/RiskMeter";
-import { CHARTS, DEFAULT_OPTIONS, type ChartOptions } from "./appTypes";
+import { LineChart } from "./components/charts/LineChart";
+import { WeatherAnalysis } from "./components/charts/WeatherAnalysis";
+import { DEFAULT_OPTIONS, type ChartOptions } from "./appTypes";
 import { ALL_STATES, type MetricId } from "./data/metrics";
-import { mergeStates } from "./data/aggregate";
+import { mergeByWeek } from "./data/aggregate";
 import { fetchTodayWeather } from "./data/risk";
+import type { WeekRecord } from "./data/load";
 
-const slideVariants = {
-  enter: (d: number) => ({ x: d >= 0 ? "100%" : "-100%" }),
-  center: { x: 0 },
-  exit: (d: number) => ({ x: d >= 0 ? "-100%" : "100%" }),
-};
+// metric used to color the choropleth
+const MAP_METRIC: MetricId = "influenza";
 
 function App() {
   const { dataset, loading, error } = useDataset();
 
-  const [stateId, setStateId] = useState("W");
+  const [selectedState, setSelectedState] = useState<string | null>(null);
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
-  const [chartIndex, setChartIndex] = useState(0);
-  const [dir, setDir] = useState(0);
   const [options, setOptions] = useState<ChartOptions>(DEFAULT_OPTIONS);
-  const [riskFetching, setRiskFetching] = useState(false);
-  const [riskError, setRiskError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<WeekRecord[] | null>(null);
+  const [weatherFetching, setWeatherFetching] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
 
-  // switch to a tab, remembering the slide direction
-  const goTab = (i: number, direction?: number) => {
-    setDir(direction ?? (i > chartIndex ? 1 : -1));
-    setChartIndex(i);
-  };
-
-  // default the time window to the full range once data loads
   const fromDate = useMemo(
     () => from ?? dataset?.minDate ?? new Date(),
     [from, dataset]
@@ -49,18 +37,44 @@ function App() {
     [to, dataset]
   );
 
-  const filtered = useMemo(() => {
+  // records in the time range, every state (drives the map)
+  const rangeRecords = useMemo(() => {
     if (!dataset) return [];
     const lo = fromDate.getTime();
     const hi = toDate.getTime();
-    const inRange = dataset.records.filter(
+    return dataset.records.filter(
       (r) => r.date.getTime() >= lo && r.date.getTime() <= hi
     );
-    if (stateId === ALL_STATES) return mergeStates(inRange);
-    return inRange.filter((r) => r.state === stateId);
-  }, [dataset, stateId, fromDate, toDate]);
+  }, [dataset, fromDate, toDate]);
 
-  const chart = CHARTS[chartIndex];
+  // range + selected state (drives the scatterplot and weather analysis)
+  const filtered = useMemo(() => {
+    if (!selectedState) return rangeRecords;
+    return rangeRecords.filter((r) => r.state === selectedState);
+  }, [rangeRecords, selectedState]);
+
+  // changing the filter invalidates a brush made against the old data
+  const handleStateChange = useCallback((s: string | null) => {
+    setSelectedState(s);
+    setSelection(null);
+  }, []);
+  const handleFromChange = useCallback((d: Date) => {
+    setFrom(d);
+    setSelection(null);
+  }, []);
+  const handleToChange = useCallback((d: Date) => {
+    setTo(d);
+    setSelection(null);
+  }, []);
+
+  // line chart: brushed subset (or everything), merged to one row per week
+  const lineRecords = useMemo(
+    () => mergeByWeek(selection ?? filtered),
+    [selection, filtered]
+  );
+
+  // weather analysis: one row per week over the current filter
+  const weatherRecords = useMemo(() => mergeByWeek(filtered), [filtered]);
 
   const toggleLine = (id: MetricId) =>
     setOptions((o) => {
@@ -70,140 +84,92 @@ function App() {
       return { ...o, line: { enabled } };
     });
 
-  const patchBar = (patch: Partial<ChartOptions["bar"]>) =>
-    setOptions((o) => ({ ...o, bar: { ...o.bar, ...patch } }));
+  const patchWeather = (patch: Partial<ChartOptions["weather"]>) =>
+    setOptions((o) => ({ ...o, weather: { ...o.weather, ...patch } }));
 
-  const patchPie = (patch: Partial<ChartOptions["pie"]>) =>
-    setOptions((o) => ({ ...o, pie: { ...o.pie, ...patch } }));
+  const handleSelect = useCallback((recs: WeekRecord[] | null) => {
+    setSelection(recs && recs.length ? recs : null);
+  }, []);
 
-  const toggleScatter = (id: MetricId) =>
-    setOptions((o) => {
-      const has = o.scatter.columns.includes(id);
-      if (has && o.scatter.columns.length <= 2) return o; // keep at least two columns
-      const columns = has
-        ? o.scatter.columns.filter((m) => m !== id)
-        : [...o.scatter.columns, id];
-      return { ...o, scatter: { columns } };
-    });
-
-  const patchRisk = (patch: Partial<ChartOptions["risk"]>) =>
-    setOptions((o) => ({ ...o, risk: { ...o.risk, ...patch } }));
-
-  // fetch today's weather for the current state and apply it to the sliders
-  const loadTodayWeather = async (state: string) => {
-    setRiskFetching(true);
-    setRiskError(null);
+  const loadTodayWeather = useCallback(async (state: string | null) => {
+    setWeatherFetching(true);
+    setWeatherError(null);
     try {
-      const w = await fetchTodayWeather(state);
-      patchRisk(w);
+      const w = await fetchTodayWeather(state ?? ALL_STATES);
+      setOptions((o) => ({ ...o, weather: { ...o.weather, ...w } }));
     } catch {
-      setRiskError("Could not fetch weather");
+      setWeatherError("Could not fetch weather");
     } finally {
-      setRiskFetching(false);
+      setWeatherFetching(false);
     }
-  };
-
-  // load today's weather once on start
-  useEffect(() => {
-    loadTodayWeather(stateId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // arrow keys switch tabs, unless the user is typing in a field
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
-      if (tag === "input" || tag === "select" || tag === "textarea") return;
-      if (e.key === "ArrowRight") {
-        setDir(1);
-        setChartIndex((i) => (i + 1) % CHARTS.length);
-      } else if (e.key === "ArrowLeft") {
-        setDir(-1);
-        setChartIndex((i) => (i - 1 + CHARTS.length) % CHARTS.length);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadTodayWeather(null);
+  }, [loadTodayWeather]);
+
+  if (loading) return <div className="status">Loading data…</div>;
+  if (error || !dataset)
+    return <div className="status status-error">Error: {error}</div>;
 
   return (
     <div className="layout">
-      {dataset && (
-        <LeftSidebar
-          state={stateId}
-          onStateChange={setStateId}
-          from={fromDate}
-          to={toDate}
-          onFromChange={setFrom}
-          onToChange={setTo}
-          minDate={dataset.minDate}
-          maxDate={dataset.maxDate}
-        />
-      )}
+      <TopLeftCard />
 
-      <Tabs charts={CHARTS} active={chartIndex} onChange={goTab} />
-
-      <RightSidebar
-        chartType={chart.type}
-        options={options}
-        onToggleLine={toggleLine}
-        onBarChange={patchBar}
-        onPieChange={patchPie}
-        onToggleScatter={toggleScatter}
+      <UploadCard
+        from={fromDate}
+        to={toDate}
+        minDate={dataset.minDate}
+        maxDate={dataset.maxDate}
+        onFromChange={handleFromChange}
+        onToChange={handleToChange}
       />
 
-      <div className="chart-area">
-        {loading && <div className="status">Loading data…</div>}
-        {error && <div className="status status-error">Error: {error}</div>}
-        {dataset && (
-          <AnimatePresence initial={false} custom={dir}>
-              <motion.div
-                key={chart.type}
-                className="chart-pane"
-                custom={dir}
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-              >
-                {chart.type === "line" && (
-                  <LineChart records={filtered} enabled={options.line.enabled} />
-                )}
-                {chart.type === "bar" && (
-                  <BarChart
-                    records={filtered}
-                    xMetric={options.bar.x}
-                    yMetric={options.bar.y}
-                  />
-                )}
-                {chart.type === "pie" && (
-                  <PieChart
-                    records={filtered}
-                    valueMetric={options.pie.value}
-                    binMetric={options.pie.bin}
-                  />
-                )}
-                {chart.type === "scatter" && (
-                  <ScatterPlot
-                    records={filtered}
-                    columns={options.scatter.columns}
-                  />
-                )}
-                {chart.type === "risk" && (
-                  <RiskMeter
-                    records={filtered}
-                    params={options.risk}
-                    onChange={patchRisk}
-                    onUseToday={() => loadTodayWeather(stateId)}
-                    fetching={riskFetching}
-                    error={riskError}
-                  />
-                )}
-              </motion.div>
-            </AnimatePresence>
-        )}
-      </div>
+      <section className="tile tile-map">
+        <h2 className="tile-title">Austria — click a state to filter</h2>
+        <div className="tile-body">
+          <AustriaMap
+            records={rangeRecords}
+            metric={MAP_METRIC}
+            selectedState={selectedState}
+            onSelectState={handleStateChange}
+          />
+        </div>
+      </section>
+
+      <section className="tile tile-chart tile-scatter">
+        <h2 className="tile-title">Scatterplot — brush to filter</h2>
+        <div className="tile-body">
+          <ScatterPlot
+            records={filtered}
+            columns={options.scatter.columns}
+            onSelect={handleSelect}
+          />
+        </div>
+      </section>
+
+      <OptionsCard enabled={options.line.enabled} onToggle={toggleLine} />
+
+      <section className="tile tile-chart tile-line">
+        <h2 className="tile-title">
+          Line graph{selection ? " — brushed weeks" : ""}
+        </h2>
+        <div className="tile-body">
+          <LineChart records={lineRecords} enabled={options.line.enabled} />
+        </div>
+      </section>
+
+      <WeatherAnalysis
+        records={weatherRecords}
+        params={options.weather}
+        onChange={patchWeather}
+        onUseToday={() => loadTodayWeather(selectedState)}
+        fetching={weatherFetching}
+        error={weatherError}
+      />
+
+      <section className="tile tile-empty" />
     </div>
   );
 }

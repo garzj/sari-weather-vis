@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState } from "react";
+import * as d3 from "d3";
+import type { FeatureCollection, Geometry } from "geojson";
+import type { WeekRecord } from "../../data/load";
+import { stateTotals } from "../../data/aggregate";
+import { METRICS, type MetricId } from "../../data/metrics";
+import { useMeasure } from "../../hooks/useMeasure";
+
+interface Props {
+  // time-range filtered records for every state
+  records: WeekRecord[];
+  metric: MetricId;
+  selectedState: string | null;
+  onSelectState: (state: string | null) => void;
+}
+
+// geojson feature name -> our federal state code
+const NAME_TO_STATE: Record<string, string> = {
+  Wien: "W",
+  Burgenland: "BGL",
+  Kärnten: "KTN",
+  Niederösterreich: "NÖ",
+  Oberösterreich: "OÖ",
+  Salzburg: "SBG",
+  Steiermark: "ST",
+  Tirol: "T",
+  Vorarlberg: "V",
+};
+
+type StateFeatureCollection = FeatureCollection<Geometry, { name: string }>;
+
+export function AustriaMap({
+  records,
+  metric,
+  selectedState,
+  onSelectState,
+}: Props) {
+  const [wrapRef, size] = useMeasure<HTMLDivElement>();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [geo, setGeo] = useState<StateFeatureCollection | null>(null);
+  const [hover, setHover] = useState<{ name: string; value: number } | null>(
+    null
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${import.meta.env.BASE_URL}geo/austria-states.geojson`)
+      .then((r) => r.json())
+      .then((json: StateFeatureCollection) => {
+        if (!cancelled) setGeo(json);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+    if (!geo || !size.width || !size.height) return;
+
+    const totals = stateTotals(records, metric);
+    const max = d3.max([...totals.values()]) ?? 0;
+    const color = d3
+      .scaleSequential(d3.interpolateBlues)
+      .domain([0, max || 1]);
+
+    const projection = d3
+      .geoMercator()
+      .fitSize([size.width, size.height], geo);
+    const path = d3.geoPath(projection);
+
+    svg
+      .append("g")
+      .selectAll<SVGPathElement, (typeof geo.features)[number]>("path")
+      .data(geo.features)
+      .join("path")
+      .attr("d", (d) => path(d) ?? "")
+      .attr("class", "map-state")
+      .classed("selected", (d) => NAME_TO_STATE[d.properties.name] === selectedState)
+      .classed(
+        "dimmed",
+        (d) =>
+          selectedState !== null &&
+          NAME_TO_STATE[d.properties.name] !== selectedState
+      )
+      .attr("fill", (d) => {
+        const code = NAME_TO_STATE[d.properties.name];
+        return color(totals.get(code) ?? 0);
+      })
+      .on("mouseenter", (_event, d) => {
+        const code = NAME_TO_STATE[d.properties.name];
+        setHover({ name: d.properties.name, value: totals.get(code) ?? 0 });
+      })
+      .on("mouseleave", () => setHover(null))
+      .on("click", (_event, d) => {
+        const code = NAME_TO_STATE[d.properties.name];
+        onSelectState(code === selectedState ? null : code);
+      });
+  }, [geo, records, metric, selectedState, size, onSelectState]);
+
+  return (
+    <div className="chart-wrap map-wrap" ref={wrapRef}>
+      <svg ref={svgRef} width={size.width} height={size.height} />
+      <div className="map-caption">
+        {hover
+          ? `${hover.name}: ${Math.round(hover.value)} ${METRICS[metric].unit}`
+          : selectedState
+          ? "Click the state again to clear the filter"
+          : `Total ${METRICS[metric].label.toLowerCase()} — click a state to filter`}
+      </div>
+    </div>
+  );
+}
