@@ -1,10 +1,13 @@
 import { dsvFormat, csvParse } from "d3";
 import type { MetricId } from "./metrics";
+import { SARI_METRICS, type SariMetricId } from "./metrics";
+import { parsePopulation, toPpm, type PopTable } from "./population";
 
 export interface WeekRecord {
   date: Date;
   state: string;
   key: string;
+  caseCounts?: Partial<Record<SariMetricId, number>>;
   values: Partial<Record<MetricId, number>>;
 }
 
@@ -12,12 +15,11 @@ export interface Dataset {
   records: WeekRecord[];
   minDate: Date;
   maxDate: Date;
+  population: PopTable;
 }
 
 const BASE = import.meta.env.BASE_URL;
 
-// weather-locations.csv no longer carries the federal_state column; the row
-// order is unchanged, so states are recovered by location_id.
 const LOCATION_STATE: Record<string, string> = {
   "0": "BGL",
   "1": "KTN",
@@ -44,7 +46,7 @@ const WEATHER_COLS: { col: string; id: MetricId; scale?: number }[] = [
   { col: "sunshine_duration (s)", id: "sunshine", scale: 1 / 3600 },
 ];
 
-type SariKey = "covid" | "influenza" | "aufnahmen";
+type SariKey = SariMetricId;
 
 function isoWeek(date: Date): { year: number; week: number } {
   const d = new Date(
@@ -91,10 +93,13 @@ interface WeatherAgg {
 }
 
 export async function loadDataset(): Promise<Dataset> {
-  const [sariText, weatherText] = await Promise.all([
+  const [sariText, weatherText, popText] = await Promise.all([
     fetchText(`${BASE}data/sari-data.csv`),
     fetchText(`${BASE}data/weather-data.csv`),
+    fetchText(`${BASE}data/population.csv`),
   ]);
+
+  const population = parsePopulation(popText);
 
   const sariByKey = new Map<string, Record<SariKey, number>>();
   dsvFormat(";").parse(sariText, (row) => {
@@ -159,17 +164,25 @@ export async function loadDataset(): Promise<Dataset> {
       if (count) values[id] = (agg.sums[id] as number) / count;
     }
     const sari = sariByKey.get(key);
+    const date = isoWeekStart(agg.year, agg.week);
+    let caseCounts: Partial<Record<SariMetricId, number>> | undefined;
     if (sari) {
-      values.covid = sari.covid;
-      values.influenza = sari.influenza;
-      values.aufnahmen = sari.aufnahmen;
+      caseCounts = { covid: sari.covid, influenza: sari.influenza, aufnahmen: sari.aufnahmen };
+      for (const id of SARI_METRICS) {
+        values[id] = toPpm(sari[id], agg.state, date, population);
+      }
     }
 
-    const date = isoWeekStart(agg.year, agg.week);
     const t = date.getTime();
     if (t < minDate) minDate = t;
     if (t > maxDate) maxDate = t;
-    records.push({ date, state: agg.state, key, values });
+    records.push({
+      date,
+      state: agg.state,
+      key,
+      caseCounts,
+      values,
+    });
   }
 
   records.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -178,5 +191,6 @@ export async function loadDataset(): Promise<Dataset> {
     records,
     minDate: new Date(minDate),
     maxDate: new Date(maxDate),
+    population,
   };
 }

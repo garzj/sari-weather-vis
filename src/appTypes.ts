@@ -8,7 +8,7 @@ export interface ChartOptions {
 }
 
 export const DEFAULT_OPTIONS: ChartOptions = {
-  line: { enabled: ["aufnahmen", "temperature", "humidity"] },
+  line: { enabled: ["influenza", "temperature", "humidity"] },
   scatter: { columns: SCATTER_METRICS },
   weather: { temperature: 5, humidity: 80 },
 };

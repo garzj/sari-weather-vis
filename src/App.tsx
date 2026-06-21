@@ -65,11 +65,15 @@ function App() {
   }, []);
 
   const lineRecords = useMemo(
-    () => mergeByWeek(selection ?? filtered),
-    [selection, filtered],
+    () =>
+      dataset ? mergeByWeek(selection ?? filtered, dataset.population) : [],
+    [selection, filtered, dataset],
   );
 
-  const weatherRecords = useMemo(() => mergeByWeek(filtered), [filtered]);
+  const weatherRecords = useMemo(
+    () => (dataset ? mergeByWeek(filtered, dataset.population) : []),
+    [filtered, dataset],
+  );
 
   const toggleLine = (id: MetricId) =>
     setOptions((o) => {
@@ -135,6 +139,7 @@ function App() {
           <AustriaMap
             records={rangeRecords}
             metric={MAP_METRIC}
+            population={dataset.population}
             selectedState={selectedState}
             onSelectState={handleStateChange}
           />

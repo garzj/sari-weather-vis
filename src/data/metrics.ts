@@ -28,21 +28,21 @@ export const METRICS: Record<MetricId, MetricMeta> = {
   covid: {
     id: "covid",
     label: "Covid cases",
-    unit: "cases/week",
+    unit: "ppm",
     source: "sari",
     color: "#e15759",
   },
   influenza: {
     id: "influenza",
-    label: "Severe influenza cases",
-    unit: "cases/week",
+    label: "Severe influenza",
+    unit: "ppm",
     source: "sari",
     color: "#59a14f",
   },
   aufnahmen: {
     id: "aufnahmen",
     label: "All infections",
-    unit: "cases/week",
+    unit: "ppm",
     source: "sari",
     color: "#76b7b2",
   },
@@ -125,7 +125,9 @@ export const METRICS: Record<MetricId, MetricMeta> = {
   },
 };
 
-export const SARI_METRICS: MetricId[] = ["covid", "influenza", "aufnahmen"];
+export const SARI_METRICS = ["covid", "influenza", "aufnahmen"] as const;
+
+export type SariMetricId = (typeof SARI_METRICS)[number];
 
 export const WEATHER_METRICS: MetricId[] = [
   "temperature",
@@ -144,7 +146,7 @@ export const WEATHER_METRICS: MetricId[] = [
 export const LINE_METRICS: MetricId[] = [...SARI_METRICS, ...WEATHER_METRICS];
 
 export const SCATTER_METRICS: MetricId[] = [
-  "aufnahmen",
+  "influenza",
   "temperature",
   "humidity",
   "vpdMax",

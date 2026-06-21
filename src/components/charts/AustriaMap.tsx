@@ -3,12 +3,14 @@ import * as d3 from "d3";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { WeekRecord } from "../../data/load";
 import { stateTotals } from "../../data/aggregate";
-import { METRICS, type MetricId } from "../../data/metrics";
+import { METRICS, SARI_METRICS, type MetricId } from "../../data/metrics";
+import type { PopTable } from "../../data/population";
 import { useMeasure } from "../../hooks/useMeasure";
 
 interface Props {
   records: WeekRecord[];
   metric: MetricId;
+  population: PopTable;
   selectedState: string | null;
   onSelectState: (state: string | null) => void;
 }
@@ -30,6 +32,7 @@ type StateFeatureCollection = FeatureCollection<Geometry, { name: string }>;
 export function AustriaMap({
   records,
   metric,
+  population,
   selectedState,
   onSelectState,
 }: Props) {
@@ -58,7 +61,7 @@ export function AustriaMap({
     svg.selectAll("*").remove();
     if (!geo || !size.width || !size.height) return;
 
-    const totals = stateTotals(records, metric);
+    const totals = stateTotals(records, metric, population);
     const max = d3.max([...totals.values()]) ?? 0;
     const color = d3
       .scaleSequential(d3.interpolateBlues)
@@ -103,7 +106,12 @@ export function AustriaMap({
         const code = NAME_TO_STATE[d.properties.name];
         onSelectState(code === selectedState ? null : code);
       });
-  }, [geo, records, metric, selectedState, size, onSelectState]);
+  }, [geo, records, metric, population, selectedState, size, onSelectState]);
+
+  const formatValue = (v: number) =>
+    SARI_METRICS.includes(metric as (typeof SARI_METRICS)[number])
+      ? v.toFixed(1)
+      : Math.round(v).toString();
 
   return (
     <div className="map-wrap">
@@ -112,7 +120,7 @@ export function AustriaMap({
       </div>
       <div className="map-caption">
         {hover
-          ? `${hover.name}: ${Math.round(hover.value)} ${METRICS[metric].unit}`
+          ? `${hover.name}: ${formatValue(hover.value)} ${METRICS[metric].unit}`
           : selectedState
           ? "Click the state again to clear the filter"
           : `Total ${METRICS[metric].label.toLowerCase()} — click a state to filter`}

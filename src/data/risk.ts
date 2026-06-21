@@ -86,7 +86,7 @@ export function matchWeeks(
     const dH = Math.abs((r.values.humidity as number) - p.humidity);
     if (dT <= MATCH_TOLERANCE.temperature && dH <= MATCH_TOLERANCE.humidity) {
       matchedWeeks += 1;
-      peopleAffected += Math.round(r.values.influenza ?? 0);
+      peopleAffected += Math.round(r.caseCounts?.influenza ?? 0);
     }
   }
   return { matchedWeeks, totalWeeks: usable.length, peopleAffected };

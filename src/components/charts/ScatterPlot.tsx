@@ -226,6 +226,8 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       if (rafId) cancelAnimationFrame(rafId);
     };
 
+    const labelX = PADDING / 2 + 4;
+    const labelY = PADDING / 2 + 4;
     svg
       .append('g')
       .style('font', "600 11px 'Segoe UI', sans-serif")
@@ -237,11 +239,18 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
         'transform',
         (_d, i) => `translate(${i * cellSize},${i * cellSize})`,
       )
-      .attr('x', PADDING / 2 + 4)
-      .attr('y', PADDING / 2 + 4)
-      .attr('dy', '0.71em')
+      .attr('x', labelX)
+      .attr('y', labelY)
       .attr('fill', '#1f2430')
-      .text((d) => METRICS[d].label);
+      .each(function (d) {
+        const meta = METRICS[d];
+        const el = d3.select(this);
+        el.append('tspan').attr('x', labelX).attr('dy', '0').text(meta.label);
+        el.append('tspan')
+          .attr('x', labelX)
+          .attr('dy', '1.15em')
+          .text(`in ${meta.unit}`);
+      });
 
     return () => cleanup();
   }, [records, columns, size, onSelect]);
