@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as d3 from "d3";
 import type { WeekRecord } from "../../data/load";
 import {
@@ -151,8 +152,8 @@ export function LineChart({ records, enabled }: Props) {
           const idx = bisect(normPoints, date);
           const nearest = normPoints[idx];
           setTooltip({
-            x: event.offsetX,
-            y: event.offsetY,
+            x: event.clientX,
+            y: event.clientY,
             label: meta.label,
             value: `${nearest.value.toFixed(1)} ${meta.unit}`,
             color: meta.color,
@@ -168,16 +169,21 @@ export function LineChart({ records, enabled }: Props) {
   return (
     <div className="chart-wrap" ref={wrapRef}>
       <svg ref={svgRef} width={size.width} height={size.height} />
-      {tooltip && (
-        <div
-          className="tooltip"
-          style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
-        >
-          <span className="tooltip-swatch" style={{ background: tooltip.color }} />
-          <strong>{tooltip.label}</strong>
-          <span className="tooltip-value">{tooltip.value}</span>
-        </div>
-      )}
+      {tooltip &&
+        createPortal(
+          <div
+            className="tooltip tooltip-floating"
+            style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
+          >
+            <span
+              className="tooltip-swatch"
+              style={{ background: tooltip.color }}
+            />
+            <strong>{tooltip.label}</strong>
+            <span className="tooltip-value">{tooltip.value}</span>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

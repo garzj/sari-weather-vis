@@ -499,7 +499,6 @@
 }
 
 .tooltip {
-  position: absolute;
   pointer-events: none;
   background: var(--panel);
   color: var(--text);
@@ -512,7 +511,10 @@
   align-items: center;
   gap: 7px;
   white-space: nowrap;
-  z-index: 10;
+}
+
+.tooltip-floating {
+  position: fixed;
 }
 
 .tooltip-swatch {
