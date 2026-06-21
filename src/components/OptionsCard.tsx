@@ -15,16 +15,23 @@ function CheckRow({
   checked,
   color,
   label,
+  disabled = false,
   onToggle,
 }: {
   checked: boolean;
   color: string;
   label: string;
+  disabled?: boolean;
   onToggle: () => void;
 }) {
   return (
-    <label className="checkbox-row">
-      <input type="checkbox" checked={checked} onChange={onToggle} />
+    <label className={`checkbox-row${disabled ? " checkbox-row--disabled" : ""}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onToggle}
+      />
       <motion.span
         className="checkbox-box"
         animate={{
@@ -44,18 +51,23 @@ function CheckRow({
 }
 
 export function OptionsCard({ enabled, onToggle }: Props) {
+  const enabledSari = SARI_METRICS.filter((id) => enabled.includes(id));
+
   return (
     <section className="tile tile-options">
       <h2 className="options-title">Line graph</h2>
       <div className="checkbox-list">
         {SARI_METRICS.map((id) => {
           const meta = METRICS[id];
+          const checked = enabled.includes(id);
+          const locked = checked && enabledSari.length === 1;
           return (
             <CheckRow
               key={id}
-              checked={enabled.includes(id)}
+              checked={checked}
               color={meta.color}
               label={meta.label}
+              disabled={locked}
               onToggle={() => onToggle(id)}
             />
           );

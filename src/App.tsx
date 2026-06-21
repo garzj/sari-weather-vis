@@ -6,9 +6,10 @@ import { OptionsCard } from './components/OptionsCard';
 import { AustriaMap } from './components/charts/AustriaMap';
 import { ScatterPlot } from './components/charts/ScatterPlot';
 import { LineChart } from './components/charts/LineChart';
+import { RiskEstimate } from './components/charts/RiskEstimate';
 import { WeatherAnalysis } from './components/charts/WeatherAnalysis';
 import { DEFAULT_OPTIONS, type ChartOptions } from './appTypes';
-import { ALL_STATES, type MetricId } from './data/metrics';
+import { ALL_STATES, SARI_METRICS, type MetricId } from './data/metrics';
 import { mergeByWeek } from './data/aggregate';
 import { fetchCurrentWeekWeather } from './data/risk';
 import {
@@ -121,10 +122,17 @@ function App() {
 
   const toggleLine = (id: MetricId) =>
     setOptions((o) => {
-      const enabled = o.line.enabled.includes(id)
-        ? o.line.enabled.filter((m) => m !== id)
-        : [...o.line.enabled, id];
-      return { ...o, line: { enabled } };
+      const isEnabled = o.line.enabled.includes(id);
+      if (isEnabled) {
+        const isSari = (SARI_METRICS as readonly MetricId[]).includes(id);
+        const enabledSari = SARI_METRICS.filter((m) => o.line.enabled.includes(m));
+        if (isSari && enabledSari.length <= 1) return o;
+        return {
+          ...o,
+          line: { enabled: o.line.enabled.filter((m) => m !== id) },
+        };
+      }
+      return { ...o, line: { enabled: [...o.line.enabled, id] } };
     });
 
   const patchWeather = useCallback((patch: Partial<ChartOptions['weather']>) => {
@@ -244,9 +252,17 @@ function App() {
       <OptionsCard enabled={options.line.enabled} onToggle={toggleLine} />
 
       <section className='tile tile-chart tile-line'>
-        <h2 className='tile-title'>
-          Line graph{activeBrush ? ' — brushed weeks' : ''}
-        </h2>
+        <div className='line-title-row'>
+          <h2 className='tile-title'>
+            Line graph{activeBrush ? ' — brushed weeks' : ''}
+          </h2>
+          {activeBrush && (
+            <RiskEstimate
+              records={lineRecords}
+              enabled={options.line.enabled}
+            />
+          )}
+        </div>
         <div className='tile-body'>
           <LineChart
             records={lineRecords}

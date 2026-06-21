@@ -148,6 +148,11 @@
   font-size: 0.85rem;
 }
 
+.checkbox-row--disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
 .checkbox-row input {
   display: none;
 }
@@ -384,6 +389,48 @@
 .tile-title-action:hover {
   background: var(--accent);
   color: #fff;
+}
+
+.line-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  min-height: 26px;
+}
+
+.line-title-row .tile-title {
+  margin: 0;
+  min-width: 0;
+}
+
+.risk-estimate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.risk-estimate--too-little {
+  color: var(--muted);
+}
+
+.risk-estimate--low {
+  color: #59a14f;
+}
+
+.risk-estimate--increased {
+  color: #f28e2b;
+}
+
+.risk-gauge-icon {
+  display: block;
+  flex-shrink: 0;
 }
 
 .weather-controls {
