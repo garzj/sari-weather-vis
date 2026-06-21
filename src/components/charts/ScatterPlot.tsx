@@ -10,10 +10,21 @@ import {
   type Season,
 } from '../../utils/date';
 
+export interface SplomBrushState {
+  xMetric: MetricId;
+  yMetric: MetricId;
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
 interface Props {
   records: WeekRecord[];
   columns: MetricId[];
   onSelect: (records: WeekRecord[] | null) => void;
+  brushState: SplomBrushState | null;
+  onBrushChange: (state: SplomBrushState | null) => void;
 }
 
 interface Point {
@@ -26,7 +37,13 @@ interface Point {
 
 const PADDING = 28;
 
-export function ScatterPlot({ records, columns, onSelect }: Props) {
+export function ScatterPlot({
+  records,
+  columns,
+  onSelect,
+  brushState,
+  onBrushChange,
+}: Props) {
   const [wrapRef, size] = useMeasure<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -208,8 +225,23 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
         pending = { x0, y0, x1, y1, i, j };
         if (!rafId) rafId = requestAnimationFrame(applyHighlight);
       })
-      .on('end', (event: d3.D3BrushEvent<[number, number]>) => {
-        if (event.selection) return;
+      .on('end', (event: d3.D3BrushEvent<[number, number]>, [i, j]) => {
+        if (restoring) return;
+        const selection = event.selection as
+          | [[number, number], [number, number]]
+          | null;
+        if (selection) {
+          const [[px0, py0], [px1, py1]] = selection;
+          onBrushChange({
+            xMetric: columns[i],
+            yMetric: columns[j],
+            x0: Math.min(x[i].invert(px0), x[i].invert(px1)),
+            x1: Math.max(x[i].invert(px0), x[i].invert(px1)),
+            y0: Math.min(y[j].invert(py0), y[j].invert(py1)),
+            y1: Math.max(y[j].invert(py0), y[j].invert(py1)),
+          });
+          return;
+        }
         if (rafId) {
           cancelAnimationFrame(rafId);
           rafId = 0;
@@ -217,10 +249,62 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
         pending = null;
         activeKey = null;
         circle.classed('hidden', false);
+        onBrushChange(null);
         onSelect(null);
       });
 
     cell.call(brush);
+
+    let restoring = false;
+
+    const restoreBrush = (state: SplomBrushState) => {
+      const i = columns.indexOf(state.xMetric);
+      const j = columns.indexOf(state.yMetric);
+      if (i < 0 || j < 0) return;
+      const extentMin = PADDING / 2;
+      const extentMax = cellSize - PADDING / 2;
+      const px0 = Math.min(x[i](state.x0), x[i](state.x1));
+      const px1 = Math.max(x[i](state.x0), x[i](state.x1));
+      const py0 = Math.min(y[j](state.y0), y[j](state.y1));
+      const py1 = Math.max(y[j](state.y0), y[j](state.y1));
+      const cx0 = Math.max(extentMin, px0);
+      const cx1 = Math.min(extentMax, px1);
+      const cy0 = Math.max(extentMin, py0);
+      const cy1 = Math.min(extentMax, py1);
+      if (cx1 <= cx0 || cy1 <= cy0) return;
+      activeKey = cellKey(i, j);
+      cell.each(function (d) {
+        if (d[0] !== i || d[1] !== j) {
+          d3.select(this).call(
+            brush.move as (
+              sel: d3.Selection<SVGGElement, unknown, null, undefined>,
+              s: null,
+            ) => void,
+            null,
+          );
+        }
+      });
+      cell.filter((d) => d[0] === i && d[1] === j).each(function () {
+        d3.select(this).call(
+          brush.move as (
+            sel: d3.Selection<SVGGElement, unknown, null, undefined>,
+            s: [[number, number], [number, number]],
+          ) => void,
+          [
+            [cx0, cy0],
+            [cx1, cy1],
+          ],
+        );
+      });
+      pending = { x0: cx0, y0: cy0, x1: cx1, y1: cy1, i, j };
+      applyHighlight();
+    };
+
+    if (brushState) {
+      restoring = true;
+      restoreBrush(brushState);
+      restoring = false;
+    }
 
     cleanup = () => {
       if (rafId) cancelAnimationFrame(rafId);
@@ -253,7 +337,7 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       });
 
     return () => cleanup();
-  }, [records, columns, size, onSelect]);
+  }, [records, columns, size, onSelect, onBrushChange, brushState]);
 
   return (
     <div className='chart-wrap splom'>

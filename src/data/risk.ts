@@ -1,4 +1,3 @@
-import type { WeekRecord } from "./load";
 import { ALL_STATES } from "./metrics";
 
 export interface WeatherParams {
@@ -11,9 +10,9 @@ export const WEATHER_RANGES = {
   humidity: { min: 0, max: 100, step: 1 },
 } as const;
 
-export const MATCH_TOLERANCE = {
-  temperature: 3,
-  humidity: 8,
+export const TOLERANCE_RANGES = {
+  temperature: { min: 0.5, max: 15, step: 0.5 },
+  humidity: { min: 1, max: 30, step: 1 },
 } as const;
 
 function clamp(v: number, min: number, max: number, step: number) {
@@ -38,13 +37,14 @@ function mean(a: number[]): number {
   return a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 }
 
-export async function fetchTodayWeather(
+/** Mean temp & humidity over the last 7 days (Open-Meteo past_days). */
+export async function fetchCurrentWeekWeather(
   stateId: string
 ): Promise<WeatherParams> {
   const [lat, lon] = STATE_COORDS[stateId] ?? STATE_COORDS[ALL_STATES];
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,relative_humidity_2m&timezone=auto&forecast_days=1`;
+    `&hourly=temperature_2m,relative_humidity_2m&past_days=7&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`weather api ${res.status}`);
   const json = await res.json();
@@ -64,30 +64,4 @@ export async function fetchTodayWeather(
       WEATHER_RANGES.humidity.step
     ),
   };
-}
-
-export interface MatchResult {
-  matchedWeeks: number;
-  totalWeeks: number;
-  peopleAffected: number;
-}
-
-export function matchWeeks(
-  records: WeekRecord[],
-  p: WeatherParams
-): MatchResult {
-  const usable = records.filter(
-    (r) => r.values.temperature != null && r.values.humidity != null
-  );
-  let matchedWeeks = 0;
-  let peopleAffected = 0;
-  for (const r of usable) {
-    const dT = Math.abs((r.values.temperature as number) - p.temperature);
-    const dH = Math.abs((r.values.humidity as number) - p.humidity);
-    if (dT <= MATCH_TOLERANCE.temperature && dH <= MATCH_TOLERANCE.humidity) {
-      matchedWeeks += 1;
-      peopleAffected += Math.round(r.caseCounts?.influenza ?? 0);
-    }
-  }
-  return { matchedWeeks, totalWeeks: usable.length, peopleAffected };
 }

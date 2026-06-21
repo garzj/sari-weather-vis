@@ -4,13 +4,15 @@ import { useDataset } from './hooks/useDataset';
 import { TopLeftCard } from './components/TopLeftCard';
 import { OptionsCard } from './components/OptionsCard';
 import { AustriaMap } from './components/charts/AustriaMap';
-import { ScatterPlot } from './components/charts/ScatterPlot';
+import { ScatterPlot, type SplomBrushState } from './components/charts/ScatterPlot';
 import { LineChart } from './components/charts/LineChart';
 import { WeatherAnalysis } from './components/charts/WeatherAnalysis';
 import { DEFAULT_OPTIONS, type ChartOptions } from './appTypes';
 import { ALL_STATES, type MetricId } from './data/metrics';
 import { mergeByWeek } from './data/aggregate';
-import { fetchTodayWeather } from './data/risk';
+import { fetchCurrentWeekWeather } from './data/risk';
+import { AGE_GROUPS, AGE_LABELS, type AgeGroup } from './data/age';
+import { recordsForAgeGroup } from './data/load';
 import { toDateInput, fromDateInput } from './utils/date';
 import type { WeekRecord } from './data/load';
 
@@ -21,12 +23,14 @@ function App() {
   const { dataset, loading, error } = useDataset();
 
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>('all');
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [options, setOptions] = useState<ChartOptions>(DEFAULT_OPTIONS);
   const [selection, setSelection] = useState<WeekRecord[] | null>(null);
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [splomBrush, setSplomBrush] = useState<SplomBrushState | null>(null);
 
   const fromDate = useMemo(
     () => from ?? DEFAULT_FROM,
@@ -37,42 +41,63 @@ function App() {
     [to, dataset],
   );
 
-  const rangeRecords = useMemo(() => {
+  const ageContext = useMemo(
+    () =>
+      dataset
+        ? {
+            group: ageGroup,
+            agePop: dataset.agePopByState[ageGroup],
+          }
+        : null,
+    [dataset, ageGroup],
+  );
+
+  const ageRecords = useMemo(() => {
     if (!dataset) return [];
+    return recordsForAgeGroup(dataset.records, dataset, ageGroup);
+  }, [dataset, ageGroup]);
+
+  const rangeRecords = useMemo(() => {
     const lo = fromDate.getTime();
     const hi = toDate.getTime();
-    return dataset.records.filter(
+    return ageRecords.filter(
       (r) => r.date.getTime() >= lo && r.date.getTime() <= hi,
     );
-  }, [dataset, fromDate, toDate]);
+  }, [ageRecords, fromDate, toDate]);
 
   const filtered = useMemo(() => {
     if (!selectedState) return rangeRecords;
     return rangeRecords.filter((r) => r.state === selectedState);
   }, [rangeRecords, selectedState]);
 
+  const clearBrush = useCallback(() => {
+    setSelection(null);
+    setSplomBrush(null);
+  }, []);
+
   const handleStateChange = useCallback((s: string | null) => {
     setSelectedState(s);
-    setSelection(null);
-  }, []);
+    clearBrush();
+  }, [clearBrush]);
+  const handleAgeChange = useCallback((group: AgeGroup) => {
+    setAgeGroup(group);
+    clearBrush();
+  }, [clearBrush]);
   const handleFromChange = useCallback((d: Date) => {
     setFrom(d);
-    setSelection(null);
-  }, []);
+    clearBrush();
+  }, [clearBrush]);
   const handleToChange = useCallback((d: Date) => {
     setTo(d);
-    setSelection(null);
-  }, []);
+    clearBrush();
+  }, [clearBrush]);
 
   const lineRecords = useMemo(
     () =>
-      dataset ? mergeByWeek(selection ?? filtered, dataset.population) : [],
-    [selection, filtered, dataset],
-  );
-
-  const weatherRecords = useMemo(
-    () => (dataset ? mergeByWeek(filtered, dataset.population) : []),
-    [filtered, dataset],
+      dataset && ageContext
+        ? mergeByWeek(selection ?? filtered, dataset.population, ageContext)
+        : [],
+    [selection, filtered, dataset, ageContext],
   );
 
   const toggleLine = (id: MetricId) =>
@@ -90,11 +115,15 @@ function App() {
     setSelection(recs && recs.length ? recs : null);
   }, []);
 
-  const loadTodayWeather = useCallback(async (state: string | null) => {
+  const handleBrushChange = useCallback((state: SplomBrushState | null) => {
+    setSplomBrush(state);
+  }, []);
+
+  const loadCurrentWeekWeather = useCallback(async (state: string | null) => {
     setWeatherFetching(true);
     setWeatherError(null);
     try {
-      const w = await fetchTodayWeather(state ?? ALL_STATES);
+      const w = await fetchCurrentWeekWeather(state ?? ALL_STATES);
       setOptions((o) => ({ ...o, weather: { ...o.weather, ...w } }));
     } catch {
       setWeatherError('Could not fetch weather');
@@ -103,10 +132,23 @@ function App() {
     }
   }, []);
 
+  const handleApplyWeatherFilter = useCallback(() => {
+    const { temperature, humidity, tempTolerance, humidityTolerance } =
+      options.weather;
+    setSplomBrush({
+      xMetric: 'temperature',
+      yMetric: 'humidity',
+      x0: temperature - tempTolerance,
+      x1: temperature + tempTolerance,
+      y0: humidity - humidityTolerance,
+      y1: humidity + humidityTolerance,
+    });
+  }, [options.weather]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadTodayWeather(null);
-  }, [loadTodayWeather]);
+    loadCurrentWeekWeather(null);
+  }, [loadCurrentWeekWeather]);
 
   if (loading) return <div className='status'>Loading data…</div>;
   if (error || !dataset)
@@ -135,11 +177,26 @@ function App() {
             onChange={(e) => handleToChange(fromDateInput(e.target.value))}
           />
         </div>
-        <div className='tile-body'>
+        <div className='tile-body map-body'>
+          <div className='map-controls-overlay'>
+            <select
+              className='map-age-select'
+              value={ageGroup}
+              onChange={(e) => handleAgeChange(e.target.value as AgeGroup)}
+              aria-label='Age group'
+            >
+              {AGE_GROUPS.map((g) => (
+                <option key={g} value={g}>
+                  {AGE_LABELS[g]}
+                </option>
+              ))}
+            </select>
+          </div>
           <AustriaMap
             records={rangeRecords}
             metric={MAP_METRIC}
             population={dataset.population}
+            ageContext={ageContext ?? undefined}
             selectedState={selectedState}
             onSelectState={handleStateChange}
           />
@@ -158,25 +215,27 @@ function App() {
       </section>
 
       <div className='right-col'>
+        <WeatherAnalysis
+          params={options.weather}
+          onChange={patchWeather}
+          onFetchWeek={() => loadCurrentWeekWeather(selectedState)}
+          onApplyFilter={handleApplyWeatherFilter}
+          fetching={weatherFetching}
+          error={weatherError}
+        />
+
         <section className='tile tile-chart tile-scatter'>
-          <h2 className='tile-title'>Scatterplot — brush to filter</h2>
+          <h2 className='tile-title'>Weekly cases vs weather — brush to filter</h2>
           <div className='tile-body'>
             <ScatterPlot
               records={filtered}
               columns={options.scatter.columns}
               onSelect={handleSelect}
+              brushState={splomBrush}
+              onBrushChange={handleBrushChange}
             />
           </div>
         </section>
-
-        <WeatherAnalysis
-          records={weatherRecords}
-          params={options.weather}
-          onChange={patchWeather}
-          onUseToday={() => loadTodayWeather(selectedState)}
-          fetching={weatherFetching}
-          error={weatherError}
-        />
       </div>
     </div>
   );

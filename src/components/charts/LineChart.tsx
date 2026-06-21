@@ -5,8 +5,10 @@ import type { WeekRecord } from "../../data/load";
 import {
   LINE_SCALE_GROUPS,
   METRICS,
+  SARI_METRICS,
   lineScaleGroup,
   type MetricId,
+  type SariMetricId,
 } from "../../data/metrics";
 import { useMeasure } from "../../hooks/useMeasure";
 
@@ -24,6 +26,45 @@ interface Tooltip {
 }
 
 const MARGIN = { top: 24, right: 24, bottom: 40, left: 40 };
+const WEEK_MS = 7 * 86_400_000;
+const SARI_LINE_WIDTH = 4.5;
+const SARI_LINE_HOVER = 7.5;
+const WEATHER_LINE_WIDTH = 2.625;
+const WEATHER_LINE_HOVER = 4.5;
+const SARI_DOT_R = 3;
+const SARI_DOT_R_HOVER = 4.5;
+const TICK_W = 9;
+const TICK_H = 3;
+const TICK_W_HOVER = 12;
+const TICK_H_HOVER = 3.75;
+const LINE_HIT_WIDTH = 18;
+
+function isSari(id: MetricId): id is SariMetricId {
+  return SARI_METRICS.includes(id as SariMetricId);
+}
+
+interface NormPoint {
+  date: Date;
+  norm: number;
+  value: number;
+}
+
+function isConsecutiveWeek(prev: Date, next: Date): boolean {
+  return next.getTime() - prev.getTime() === WEEK_MS;
+}
+
+function splitSegments(points: NormPoint[]): NormPoint[][] {
+  if (points.length === 0) return [];
+  const segments: NormPoint[][] = [[points[0]]];
+  for (let i = 1; i < points.length; i++) {
+    if (isConsecutiveWeek(points[i - 1].date, points[i].date)) {
+      segments[segments.length - 1].push(points[i]);
+    } else {
+      segments.push([points[i]]);
+    }
+  }
+  return segments;
+}
 
 function groupExtents(
   records: WeekRecord[],
@@ -95,13 +136,22 @@ export function LineChart({ records, enabled }: Props) {
     }
 
     const line = d3
-      .line<{ date: Date; norm: number }>()
+      .line<NormPoint>()
       .x((d) => x(d.date))
       .y((d) => y(d.norm))
       .curve(d3.curveMonotoneX);
 
-    for (const id of enabled) {
+    const sariSet = new Set<MetricId>(SARI_METRICS);
+    const drawOrder = [
+      ...enabled.filter((id) => !sariSet.has(id)),
+      ...enabled.filter((id) => sariSet.has(id)),
+    ];
+
+    for (const id of drawOrder) {
       const meta = METRICS[id];
+      const sari = isSari(id);
+      const lineWidth = sari ? SARI_LINE_WIDTH : WEATHER_LINE_WIDTH;
+      const hoverWidth = sari ? SARI_LINE_HOVER : WEATHER_LINE_HOVER;
       const points = records
         .filter((r) => r.values[id] !== undefined)
         .map((r) => ({ date: r.date, value: r.values[id] as number }));
@@ -119,38 +169,46 @@ export function LineChart({ records, enabled }: Props) {
         max = d3.max(points, (p) => p.value)!;
       }
       const span = max - min || 1;
-      const normPoints = points.map((p) => ({
+      const normPoints: NormPoint[] = points.map((p) => ({
         date: p.date,
         norm: (p.value - min) / span,
         value: p.value,
       }));
 
-      const path = g
-        .append("path")
-        .datum(normPoints)
+      const series = g.append("g").attr("class", "line-series");
+      const segments = splitSegments(normPoints);
+      const connected = segments.filter((seg) => seg.length >= 2);
+      const isolated = segments.filter((seg) => seg.length === 1).map((seg) => seg[0]);
+
+      const paths = series
+        .selectAll<SVGPathElement, NormPoint[]>("path.line-segment")
+        .data(connected)
+        .join("path")
+        .attr("class", "line-segment")
         .attr("fill", "none")
         .attr("stroke", meta.color)
-        .attr("stroke-width", 2)
+        .attr("stroke-width", lineWidth)
         .attr("stroke-linejoin", "round")
+        .attr("stroke-dasharray", sari ? null : "7.5 6")
         .attr("d", line)
         .style("cursor", "pointer");
 
-      g.append("path")
-        .datum(normPoints)
+      series
+        .selectAll<SVGPathElement, NormPoint[]>("path.line-hit")
+        .data(connected)
+        .join("path")
+        .attr("class", "line-hit")
         .attr("fill", "none")
         .attr("stroke", "transparent")
-        .attr("stroke-width", 12)
+        .attr("stroke-width", LINE_HIT_WIDTH)
         .attr("d", line)
         .style("cursor", "pointer")
-        .on("mousemove", (event: MouseEvent) => {
-          path.attr("stroke-width", 4);
+        .on("mouseenter", () => paths.attr("stroke-width", hoverWidth))
+        .on("mousemove", function (event: MouseEvent, seg: NormPoint[]) {
           const [mx] = d3.pointer(event, svgRef.current);
           const date = x.invert(mx - MARGIN.left);
-          const bisect = d3.bisector(
-            (p: { date: Date }) => p.date
-          ).center;
-          const idx = bisect(normPoints, date);
-          const nearest = normPoints[idx];
+          const idx = d3.bisector((p: NormPoint) => p.date).center(seg, date);
+          const nearest = seg[idx];
           setTooltip({
             x: event.clientX,
             y: event.clientY,
@@ -160,9 +218,75 @@ export function LineChart({ records, enabled }: Props) {
           });
         })
         .on("mouseleave", () => {
-          path.attr("stroke-width", 2);
+          paths.attr("stroke-width", lineWidth);
           setTooltip(null);
         });
+
+      if (sari) {
+        series
+          .selectAll<SVGCircleElement, NormPoint>("circle.line-isolated")
+          .data(isolated)
+          .join("circle")
+          .attr("class", "line-isolated")
+          .attr("cx", (d) => x(d.date))
+          .attr("cy", (d) => y(d.norm))
+          .attr("r", SARI_DOT_R)
+          .attr("fill", meta.color)
+          .style("cursor", "pointer")
+          .on("mouseenter", function () {
+            d3.select(this).attr("r", SARI_DOT_R_HOVER);
+          })
+          .on("mousemove", (event: MouseEvent, d: NormPoint) => {
+            setTooltip({
+              x: event.clientX,
+              y: event.clientY,
+              label: meta.label,
+              value: `${d.value.toFixed(1)} ${meta.unit}`,
+              color: meta.color,
+            });
+          })
+          .on("mouseleave", function () {
+            d3.select(this).attr("r", SARI_DOT_R);
+            setTooltip(null);
+          });
+      } else {
+        series
+          .selectAll<SVGRectElement, NormPoint>("rect.line-isolated")
+          .data(isolated)
+          .join("rect")
+          .attr("class", "line-isolated")
+          .attr("x", (d) => x(d.date) - TICK_W / 2)
+          .attr("y", (d) => y(d.norm) - TICK_H / 2)
+          .attr("width", TICK_W)
+          .attr("height", TICK_H)
+          .attr("rx", 0.5)
+          .attr("fill", meta.color)
+          .style("cursor", "pointer")
+          .on("mouseenter", function (_event, d) {
+            const el = d3.select(this);
+            el.attr("width", TICK_W_HOVER).attr("height", TICK_H_HOVER);
+            el
+              .attr("x", x(d.date) - TICK_W_HOVER / 2)
+              .attr("y", y(d.norm) - TICK_H_HOVER / 2);
+          })
+          .on("mousemove", (event: MouseEvent, d: NormPoint) => {
+            setTooltip({
+              x: event.clientX,
+              y: event.clientY,
+              label: meta.label,
+              value: `${d.value.toFixed(1)} ${meta.unit}`,
+              color: meta.color,
+            });
+          })
+          .on("mouseleave", function (_event, d) {
+            const el = d3.select(this);
+            el.attr("width", TICK_W).attr("height", TICK_H);
+            el
+              .attr("x", x(d.date) - TICK_W / 2)
+              .attr("y", y(d.norm) - TICK_H / 2);
+            setTooltip(null);
+          });
+      }
     }
   }, [records, enabled, size]);
 

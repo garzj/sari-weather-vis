@@ -118,6 +118,7 @@ export const WEATHER_METRICS: MetricId[] = [
 
 // line chart: metrics in the same group share one y-scale (min–max across all shown)
 export const LINE_SCALE_GROUPS: Record<string, MetricId[]> = {
+  sari: [...SARI_METRICS],
   temperature: ["temperature", "tempMax", "tempMin"],
   humidity: ["humidity", "humidityMax", "humidityMin"],
 };

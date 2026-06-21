@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { WeekRecord } from "../../data/load";
-import { stateTotals } from "../../data/aggregate";
+import { stateTotals, type AgeContext } from "../../data/aggregate";
 import { METRICS, SARI_METRICS, type MetricId } from "../../data/metrics";
 import type { PopTable } from "../../data/population";
 import { useMeasure } from "../../hooks/useMeasure";
@@ -11,6 +11,7 @@ interface Props {
   records: WeekRecord[];
   metric: MetricId;
   population: PopTable;
+  ageContext?: AgeContext;
   selectedState: string | null;
   onSelectState: (state: string | null) => void;
 }
@@ -33,6 +34,7 @@ export function AustriaMap({
   records,
   metric,
   population,
+  ageContext,
   selectedState,
   onSelectState,
 }: Props) {
@@ -61,7 +63,7 @@ export function AustriaMap({
     svg.selectAll("*").remove();
     if (!geo || !size.width || !size.height) return;
 
-    const totals = stateTotals(records, metric, population);
+    const totals = stateTotals(records, metric, population, ageContext);
     const max = d3.max([...totals.values()]) ?? 0;
     const color = d3
       .scaleSequential(d3.interpolateBlues)
@@ -106,7 +108,7 @@ export function AustriaMap({
         const code = NAME_TO_STATE[d.properties.name];
         onSelectState(code === selectedState ? null : code);
       });
-  }, [geo, records, metric, population, selectedState, size, onSelectState]);
+  }, [geo, records, metric, population, ageContext, selectedState, size, onSelectState]);
 
   const formatValue = (v: number) =>
     SARI_METRICS.includes(metric as (typeof SARI_METRICS)[number])

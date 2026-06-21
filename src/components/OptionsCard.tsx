@@ -1,5 +1,10 @@
 import { motion } from "framer-motion";
-import { LINE_METRICS, METRICS, type MetricId } from "../data/metrics";
+import {
+  METRICS,
+  SARI_METRICS,
+  WEATHER_METRICS,
+  type MetricId,
+} from "../data/metrics";
 
 interface Props {
   enabled: MetricId[];
@@ -43,7 +48,20 @@ export function OptionsCard({ enabled, onToggle }: Props) {
     <section className="tile tile-options">
       <h2 className="options-title">Line graph</h2>
       <div className="checkbox-list">
-        {LINE_METRICS.map((id) => {
+        {SARI_METRICS.map((id) => {
+          const meta = METRICS[id];
+          return (
+            <CheckRow
+              key={id}
+              checked={enabled.includes(id)}
+              color={meta.color}
+              label={meta.label}
+              onToggle={() => onToggle(id)}
+            />
+          );
+        })}
+        <div className="options-divider" role="separator" />
+        {WEATHER_METRICS.map((id) => {
           const meta = METRICS[id];
           return (
             <CheckRow

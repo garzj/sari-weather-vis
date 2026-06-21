@@ -1,7 +1,13 @@
 import { dsvFormat, csvParse } from "d3";
 import type { MetricId } from "./metrics";
 import { SARI_METRICS, type SariMetricId } from "./metrics";
-import { parsePopulation, toPpm, type PopTable } from "./population";
+import { parsePopulation, type PopTable } from "./population";
+import {
+  AGE_GROUPS,
+  matchesAgeGroup,
+  toAgePpm,
+  type AgeGroup,
+} from "./age";
 
 export interface WeekRecord {
   date: Date;
@@ -13,6 +19,8 @@ export interface WeekRecord {
 
 export interface Dataset {
   records: WeekRecord[];
+  sariByAge: Record<AgeGroup, Map<string, Record<SariKey, number>>>;
+  agePopByState: Record<AgeGroup, Map<string, number>>;
   minDate: Date;
   maxDate: Date;
   population: PopTable;
@@ -44,6 +52,14 @@ const WEATHER_COLS: { col: string; id: MetricId; scale?: number }[] = [
 ];
 
 type SariKey = SariMetricId;
+
+function emptySariMaps(): Record<AgeGroup, Map<string, Record<SariKey, number>>> {
+  return { all: new Map(), "60plus": new Map(), "80plus": new Map() };
+}
+
+function emptyAgePopMaps(): Record<AgeGroup, Map<string, number>> {
+  return { all: new Map(), "60plus": new Map(), "80plus": new Map() };
+}
 
 function isoWeek(date: Date): { year: number; week: number } {
   const d = new Date(
@@ -89,6 +105,45 @@ interface WeatherAgg {
   counts: Partial<Record<MetricId, number>>;
 }
 
+export function recordsForAgeGroup(
+  base: WeekRecord[],
+  dataset: Dataset,
+  group: AgeGroup
+): WeekRecord[] {
+  const sariMap = dataset.sariByAge[group];
+  const agePop = dataset.agePopByState[group];
+  const { population } = dataset;
+
+  return base.map((rec) => {
+    const sari = sariMap.get(rec.key);
+    const values: Partial<Record<MetricId, number>> = {};
+    for (const key of Object.keys(rec.values) as MetricId[]) {
+      if (!SARI_METRICS.includes(key as SariMetricId)) {
+        values[key] = rec.values[key];
+      }
+    }
+    if (!sari) {
+      return { ...rec, caseCounts: undefined, values };
+    }
+    const caseCounts = {
+      covid: sari.covid,
+      influenza: sari.influenza,
+      aufnahmen: sari.aufnahmen,
+    };
+    for (const id of SARI_METRICS) {
+      values[id] = toAgePpm(
+        sari[id],
+        rec.state,
+        rec.date,
+        group,
+        agePop,
+        population
+      );
+    }
+    return { ...rec, caseCounts, values };
+  });
+}
+
 export async function loadDataset(): Promise<Dataset> {
   const [sariText, weatherText, popText] = await Promise.all([
     fetchText(`${BASE}data/sari-data.csv`),
@@ -97,21 +152,46 @@ export async function loadDataset(): Promise<Dataset> {
   ]);
 
   const population = parsePopulation(popText);
+  const sariByAge = emptySariMaps();
+  const agePopByState = emptyAgePopMaps();
+  const popSeen: Record<AgeGroup, Set<string>> = {
+    all: new Set(),
+    "60plus": new Set(),
+    "80plus": new Set(),
+  };
 
-  const sariByKey = new Map<string, Record<SariKey, number>>();
   dsvFormat(";").parse(sariText, (row) => {
     const kw = parseKw(row.KW ?? "");
     const state = row.WOHNORT;
+    const altersgruppe = row.ALTERSGRUPPE ?? "";
     if (!kw || !state) return null;
+
     const key = `${state}|${weekKey(kw.year, kw.week)}`;
-    let agg = sariByKey.get(key);
-    if (!agg) {
-      agg = { covid: 0, influenza: 0, aufnahmen: 0 };
-      sariByKey.set(key, agg);
+    const bev = +(row.BEV_ZAHL ?? 0);
+
+    for (const group of AGE_GROUPS) {
+      if (!matchesAgeGroup(altersgruppe, group)) continue;
+
+      let agg = sariByAge[group].get(key);
+      if (!agg) {
+        agg = { covid: 0, influenza: 0, aufnahmen: 0 };
+        sariByAge[group].set(key, agg);
+      }
+      agg.covid += +(row.COVID ?? 0);
+      agg.influenza += +(row.INFLUENZA ?? 0);
+      agg.aufnahmen += +(row.AUFNAHMEN ?? 0);
+
+      if (bev > 0) {
+        const popKey = `${state}|${altersgruppe}`;
+        if (!popSeen[group].has(popKey)) {
+          popSeen[group].add(popKey);
+          agePopByState[group].set(
+            state,
+            (agePopByState[group].get(state) ?? 0) + bev
+          );
+        }
+      }
     }
-    agg.covid += +(row.COVID ?? 0);
-    agg.influenza += +(row.INFLUENZA ?? 0);
-    agg.aufnahmen += +(row.AUFNAHMEN ?? 0);
     return null;
   });
 
@@ -160,16 +240,8 @@ export async function loadDataset(): Promise<Dataset> {
       const count = agg.counts[id];
       if (count) values[id] = (agg.sums[id] as number) / count;
     }
-    const sari = sariByKey.get(key);
-    const date = isoWeekStart(agg.year, agg.week);
-    let caseCounts: Partial<Record<SariMetricId, number>> | undefined;
-    if (sari) {
-      caseCounts = { covid: sari.covid, influenza: sari.influenza, aufnahmen: sari.aufnahmen };
-      for (const id of SARI_METRICS) {
-        values[id] = toPpm(sari[id], agg.state, date, population);
-      }
-    }
 
+    const date = isoWeekStart(agg.year, agg.week);
     const t = date.getTime();
     if (t < minDate) minDate = t;
     if (t > maxDate) maxDate = t;
@@ -177,7 +249,6 @@ export async function loadDataset(): Promise<Dataset> {
       date,
       state: agg.state,
       key,
-      caseCounts,
       values,
     });
   }
@@ -186,6 +257,8 @@ export async function loadDataset(): Promise<Dataset> {
 
   return {
     records,
+    sariByAge,
+    agePopByState,
     minDate: new Date(minDate),
     maxDate: new Date(maxDate),
     population,

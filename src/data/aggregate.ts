@@ -1,6 +1,13 @@
 import type { WeekRecord } from "./load";
+import type { AgeGroup } from "./age";
+import { toAgePpm } from "./age";
 import { SARI_METRICS, type MetricId, type SariMetricId } from "./metrics";
-import { toPpm, type PopTable } from "./population";
+import type { PopTable } from "./population";
+
+export interface AgeContext {
+  group: AgeGroup;
+  agePop: Map<string, number>;
+}
 
 function popState(states: Set<string>): string {
   return states.size === 1 ? [...states][0] : "ALL";
@@ -8,7 +15,8 @@ function popState(states: Set<string>): string {
 
 export function mergeByWeek(
   records: WeekRecord[],
-  population: PopTable
+  population: PopTable,
+  age?: AgeContext
 ): WeekRecord[] {
   const groups = new Map<
     number,
@@ -45,6 +53,11 @@ export function mergeByWeek(
     }
   }
 
+  const ppm = (cases: number, state: string, date: Date) =>
+    age
+      ? toAgePpm(cases, state, date, age.group, age.agePop, population)
+      : toAgePpm(cases, state, date, "all", new Map(), population);
+
   const out: WeekRecord[] = [];
   for (const g of groups.values()) {
     const values: Partial<Record<MetricId, number>> = {};
@@ -54,7 +67,7 @@ export function mergeByWeek(
     const state = popState(g.states);
     for (const id of SARI_METRICS) {
       const cases = g.caseCounts[id];
-      if (cases) values[id] = toPpm(cases, state, g.date, population);
+      if (cases) values[id] = ppm(cases, state, g.date);
     }
     out.push({
       date: g.date,
@@ -71,7 +84,8 @@ export function mergeByWeek(
 export function stateTotals(
   records: WeekRecord[],
   metric: MetricId,
-  population: PopTable
+  population: PopTable,
+  age?: AgeContext
 ): Map<string, number> {
   if (!SARI_METRICS.includes(metric as SariMetricId)) {
     const totals = new Map<string, number>();
@@ -94,9 +108,14 @@ export function stateTotals(
     });
   }
 
+  const ppm = (cases: number, state: string, date: Date) =>
+    age
+      ? toAgePpm(cases, state, date, age.group, age.agePop, population)
+      : toAgePpm(cases, state, date, "all", new Map(), population);
+
   const totals = new Map<string, number>();
   for (const [state, { cases, date }] of casesByState) {
-    totals.set(state, toPpm(cases, state, date, population));
+    totals.set(state, ppm(cases, state, date));
   }
   return totals;
 }
