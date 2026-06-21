@@ -5,9 +5,6 @@ export type MetricId =
   | "temperature"
   | "tempMax"
   | "tempMin"
-  | "dewMean"
-  | "dewMax"
-  | "dewMin"
   | "humidity"
   | "humidityMax"
   | "humidityMin"
@@ -67,27 +64,6 @@ export const METRICS: Record<MetricId, MetricMeta> = {
     source: "weather",
     color: "#6f8cbf",
   },
-  dewMean: {
-    id: "dewMean",
-    label: "Mean dew point",
-    unit: "°C",
-    source: "weather",
-    color: "#4e79a7",
-  },
-  dewMax: {
-    id: "dewMax",
-    label: "Max dew point",
-    unit: "°C",
-    source: "weather",
-    color: "#5b9bd5",
-  },
-  dewMin: {
-    id: "dewMin",
-    label: "Min dew point",
-    unit: "°C",
-    source: "weather",
-    color: "#a0cbe8",
-  },
   humidity: {
     id: "humidity",
     label: "Average humidity",
@@ -133,15 +109,25 @@ export const WEATHER_METRICS: MetricId[] = [
   "temperature",
   "tempMax",
   "tempMin",
-  "dewMean",
-  "dewMax",
-  "dewMin",
   "humidity",
   "humidityMax",
   "humidityMin",
   "vpdMax",
   "sunshine",
 ];
+
+// line chart: metrics in the same group share one y-scale (min–max across all shown)
+export const LINE_SCALE_GROUPS: Record<string, MetricId[]> = {
+  temperature: ["temperature", "tempMax", "tempMin"],
+  humidity: ["humidity", "humidityMax", "humidityMin"],
+};
+
+export function lineScaleGroup(id: MetricId): string | null {
+  for (const [group, ids] of Object.entries(LINE_SCALE_GROUPS)) {
+    if (ids.includes(id)) return group;
+  }
+  return null;
+}
 
 export const LINE_METRICS: MetricId[] = [...SARI_METRICS, ...WEATHER_METRICS];
 

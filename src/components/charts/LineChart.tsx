@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import type { WeekRecord } from "../../data/load";
-import { METRICS, type MetricId } from "../../data/metrics";
+import {
+  LINE_SCALE_GROUPS,
+  METRICS,
+  lineScaleGroup,
+  type MetricId,
+} from "../../data/metrics";
 import { useMeasure } from "../../hooks/useMeasure";
 
 interface Props {
@@ -18,6 +23,24 @@ interface Tooltip {
 }
 
 const MARGIN = { top: 24, right: 24, bottom: 40, left: 40 };
+
+function groupExtents(
+  records: WeekRecord[],
+  ids: MetricId[]
+): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const r of records) {
+    for (const id of ids) {
+      const v = r.values[id];
+      if (v === undefined) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!Number.isFinite(min)) return null;
+  return { min, max };
+}
 
 export function LineChart({ records, enabled }: Props) {
   const [wrapRef, size] = useMeasure<HTMLDivElement>();
@@ -62,6 +85,14 @@ export function LineChart({ records, enabled }: Props) {
       .attr("font-size", 12)
       .text("Time");
 
+    const sharedScale = new Map<string, { min: number; max: number }>();
+    for (const [group, ids] of Object.entries(LINE_SCALE_GROUPS)) {
+      const active = ids.filter((id) => enabled.includes(id));
+      if (active.length === 0) continue;
+      const ext = groupExtents(records, active);
+      if (ext) sharedScale.set(group, ext);
+    }
+
     const line = d3
       .line<{ date: Date; norm: number }>()
       .x((d) => x(d.date))
@@ -75,8 +106,17 @@ export function LineChart({ records, enabled }: Props) {
         .map((r) => ({ date: r.date, value: r.values[id] as number }));
       if (points.length === 0) continue;
 
-      const min = d3.min(points, (p) => p.value)!;
-      const max = d3.max(points, (p) => p.value)!;
+      const group = lineScaleGroup(id);
+      const shared = group ? sharedScale.get(group) : null;
+      let min: number;
+      let max: number;
+      if (shared) {
+        min = shared.min;
+        max = shared.max;
+      } else {
+        min = d3.min(points, (p) => p.value)!;
+        max = d3.max(points, (p) => p.value)!;
+      }
       const span = max - min || 1;
       const normPoints = points.map((p) => ({
         date: p.date,
