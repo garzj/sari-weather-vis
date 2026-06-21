@@ -1,11 +1,12 @@
-import { WEATHER_RANGES, TOLERANCE_RANGES } from "../../data/risk";
-import type { WeatherOptions } from "../../appTypes";
+import { WEATHER_RANGES, TOLERANCE_RANGES } from '../../data/risk';
+import type { WeatherOptions } from '../../appTypes';
 
 interface Props {
   params: WeatherOptions;
   onChange: (patch: Partial<WeatherOptions>) => void;
   onFetchWeek: () => void;
-  onApplyFilter: () => void;
+  showSyncApply: boolean;
+  onSyncApply: () => void;
   fetching: boolean;
   error: string | null;
 }
@@ -28,15 +29,15 @@ function SliderRow({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="field slider-field">
-      <span className="field-label">
+    <label className='field slider-field'>
+      <span className='field-label'>
         {label}
-        <span className="slider-value">
+        <span className='slider-value'>
           {value} {unit}
         </span>
       </span>
       <input
-        type="range"
+        type='range'
         min={min}
         max={max}
         step={step}
@@ -51,18 +52,30 @@ export function WeatherAnalysis({
   params,
   onChange,
   onFetchWeek,
-  onApplyFilter,
+  showSyncApply,
+  onSyncApply,
   fetching,
   error,
 }: Props) {
   return (
-    <section className="tile tile-weather">
-      <h2 className="tile-title">Week&apos;s weather</h2>
-      <div className="weather-body">
-        <div className="weather-controls">
+    <section className='tile tile-weather'>
+      <div className='weather-title-row'>
+        <h2 className='tile-title'>Week&apos;s weather</h2>
+        <button
+          type='button'
+          className={`weather-sync-apply${showSyncApply ? '' : ' is-hidden'}`}
+          onClick={onSyncApply}
+          tabIndex={showSyncApply ? 0 : -1}
+          aria-hidden={!showSyncApply}
+        >
+          Apply
+        </button>
+      </div>
+      <div className='weather-body'>
+        <div className='weather-controls'>
           <SliderRow
-            label="Temperature"
-            unit="°C"
+            label='Temperature'
+            unit='°C'
             value={params.temperature}
             min={WEATHER_RANGES.temperature.min}
             max={WEATHER_RANGES.temperature.max}
@@ -70,8 +83,8 @@ export function WeatherAnalysis({
             onChange={(temperature) => onChange({ temperature })}
           />
           <SliderRow
-            label="Humidity"
-            unit="%"
+            label='Humidity'
+            unit='%'
             value={params.humidity}
             min={WEATHER_RANGES.humidity.min}
             max={WEATHER_RANGES.humidity.max}
@@ -79,20 +92,20 @@ export function WeatherAnalysis({
             onChange={(humidity) => onChange({ humidity })}
           />
           <button
-            type="button"
-            className="weather-apply"
+            type='button'
+            className='weather-apply'
             onClick={onFetchWeek}
             disabled={fetching}
           >
             {fetching ? (
-              <span className="spinner" aria-label="Fetching" />
+              <span className='spinner' aria-label='Fetching' />
             ) : (
-              "Current week"
+              'Current week'
             )}
           </button>
           <SliderRow
-            label="± Temperature"
-            unit="°C"
+            label='± Temperature'
+            unit='°C'
             value={params.tempTolerance}
             min={TOLERANCE_RANGES.temperature.min}
             max={TOLERANCE_RANGES.temperature.max}
@@ -100,22 +113,15 @@ export function WeatherAnalysis({
             onChange={(tempTolerance) => onChange({ tempTolerance })}
           />
           <SliderRow
-            label="± Humidity"
-            unit="%"
+            label='± Humidity'
+            unit='%'
             value={params.humidityTolerance}
             min={TOLERANCE_RANGES.humidity.min}
             max={TOLERANCE_RANGES.humidity.max}
             step={TOLERANCE_RANGES.humidity.step}
             onChange={(humidityTolerance) => onChange({ humidityTolerance })}
           />
-          <button
-            type="button"
-            className="risk-fetch"
-            onClick={onApplyFilter}
-          >
-            Apply filter
-          </button>
-          {error && <span className="risk-fetch-error">{error}</span>}
+          {error && <span className='risk-fetch-error'>{error}</span>}
         </div>
       </div>
     </section>

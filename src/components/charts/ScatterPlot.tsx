@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import type { WeekRecord } from '../../data/load';
 import { METRICS, type MetricId } from '../../data/metrics';
+import { asWeatherBrush, type SplomBrushState } from '../../data/brushWeather';
 import { useMeasure } from '../../hooks/useMeasure';
 import {
   seasonOf,
@@ -10,21 +11,14 @@ import {
   type Season,
 } from '../../utils/date';
 
-export interface SplomBrushState {
-  xMetric: MetricId;
-  yMetric: MetricId;
-  x0: number;
-  x1: number;
-  y0: number;
-  y1: number;
-}
+export type { SplomBrushState } from '../../data/brushWeather';
 
 interface Props {
   records: WeekRecord[];
   columns: MetricId[];
   onSelect: (records: WeekRecord[] | null) => void;
   brushState: SplomBrushState | null;
-  onBrushChange: (state: SplomBrushState | null) => void;
+  onPlotBrush: (state: SplomBrushState | null) => void;
 }
 
 interface Point {
@@ -35,6 +29,11 @@ interface Point {
   cy: number[];
 }
 
+interface ChartApi {
+  restoreBrush: (state: SplomBrushState | null) => void;
+  dispose: () => void;
+}
+
 const PADDING = 28;
 
 export function ScatterPlot({
@@ -42,15 +41,25 @@ export function ScatterPlot({
   columns,
   onSelect,
   brushState,
-  onBrushChange,
+  onPlotBrush,
 }: Props) {
   const [wrapRef, size] = useMeasure<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
+  const chartRef = useRef<ChartApi | null>(null);
+  const brushStateRef = useRef(brushState);
+  const onSelectRef = useRef(onSelect);
+  const onPlotBrushRef = useRef(onPlotBrush);
+  brushStateRef.current = brushState;
+  onSelectRef.current = onSelect;
+  onPlotBrushRef.current = onPlotBrush;
 
   useEffect(() => {
-    let cleanup = () => {};
+    let rafId = 0;
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+    chartRef.current = null;
+
     if (!size.width || !size.height) return;
 
     const side = Math.min(size.width, size.height);
@@ -175,9 +184,27 @@ export function ScatterPlot({
       .attr('pointer-events', 'none');
 
     const cellKey = (i: number, j: number) => `${i}-${j}`;
-    let activeKey: string | null = null;
 
-    let rafId = 0;
+    const toBrushState = (
+      i: number,
+      j: number,
+      px0: number,
+      py0: number,
+      px1: number,
+      py1: number,
+    ): SplomBrushState =>
+      asWeatherBrush({
+        xMetric: columns[i],
+        yMetric: columns[j],
+        x0: Math.min(x[i].invert(px0), x[i].invert(px1)),
+        x1: Math.max(x[i].invert(px0), x[i].invert(px1)),
+        y0: Math.min(y[j].invert(py0), y[j].invert(py1)),
+        y1: Math.max(y[j].invert(py0), y[j].invert(py1)),
+      });
+
+    let activeKey: string | null = null;
+    let syncingFromParent = false;
+
     let pending: {
       x0: number;
       y0: number;
@@ -186,6 +213,7 @@ export function ScatterPlot({
       i: number;
       j: number;
     } | null = null;
+
     const applyHighlight = () => {
       rafId = 0;
       if (!pending) return;
@@ -198,7 +226,7 @@ export function ScatterPlot({
         if (!out) selected.push(p.rec);
         return out;
       });
-      onSelect(selected);
+      onSelectRef.current(selected);
     };
 
     const brush = d3
@@ -210,9 +238,14 @@ export function ScatterPlot({
       .on('start', (_event, [i, j]) => {
         const key = cellKey(i, j);
         if (activeKey && activeKey !== key) {
-          cell
-            .filter((d) => cellKey(d[0], d[1]) === activeKey)
-            .call(brush.move, null);
+          syncingFromParent = true;
+          try {
+            cell
+              .filter((d) => cellKey(d[0], d[1]) === activeKey)
+              .call(brush.move, null);
+          } finally {
+            syncingFromParent = false;
+          }
         }
         activeKey = key;
       })
@@ -226,20 +259,16 @@ export function ScatterPlot({
         if (!rafId) rafId = requestAnimationFrame(applyHighlight);
       })
       .on('end', (event: d3.D3BrushEvent<[number, number]>, [i, j]) => {
-        if (restoring) return;
+        if (syncingFromParent || !event.sourceEvent) return;
+
         const selection = event.selection as
           | [[number, number], [number, number]]
           | null;
         if (selection) {
           const [[px0, py0], [px1, py1]] = selection;
-          onBrushChange({
-            xMetric: columns[i],
-            yMetric: columns[j],
-            x0: Math.min(x[i].invert(px0), x[i].invert(px1)),
-            x1: Math.max(x[i].invert(px0), x[i].invert(px1)),
-            y0: Math.min(y[j].invert(py0), y[j].invert(py1)),
-            y1: Math.max(y[j].invert(py0), y[j].invert(py1)),
-          });
+          onPlotBrushRef.current(
+            toBrushState(i, j, px0, py0, px1, py1),
+          );
           return;
         }
         if (rafId) {
@@ -249,66 +278,91 @@ export function ScatterPlot({
         pending = null;
         activeKey = null;
         circle.classed('hidden', false);
-        onBrushChange(null);
-        onSelect(null);
+        onPlotBrushRef.current(null);
+        onSelectRef.current(null);
       });
 
     cell.call(brush);
 
-    let restoring = false;
+    const restoreBrush = (state: SplomBrushState | null) => {
+      syncingFromParent = true;
+      try {
+        if (!state) {
+          cell.each(function () {
+            d3.select(this).call(
+              brush.move as (
+                sel: d3.Selection<SVGGElement, unknown, null, undefined>,
+                s: null,
+              ) => void,
+              null,
+            );
+          });
+          if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = 0;
+          }
+          pending = null;
+          activeKey = null;
+          circle.classed('hidden', false);
+          onSelectRef.current(null);
+          return;
+        }
 
-    const restoreBrush = (state: SplomBrushState) => {
-      const i = columns.indexOf(state.xMetric);
-      const j = columns.indexOf(state.yMetric);
-      if (i < 0 || j < 0) return;
-      const extentMin = PADDING / 2;
-      const extentMax = cellSize - PADDING / 2;
-      const px0 = Math.min(x[i](state.x0), x[i](state.x1));
-      const px1 = Math.max(x[i](state.x0), x[i](state.x1));
-      const py0 = Math.min(y[j](state.y0), y[j](state.y1));
-      const py1 = Math.max(y[j](state.y0), y[j](state.y1));
-      const cx0 = Math.max(extentMin, px0);
-      const cx1 = Math.min(extentMax, px1);
-      const cy0 = Math.max(extentMin, py0);
-      const cy1 = Math.min(extentMax, py1);
-      if (cx1 <= cx0 || cy1 <= cy0) return;
-      activeKey = cellKey(i, j);
-      cell.each(function (d) {
-        if (d[0] !== i || d[1] !== j) {
+        const i = columns.indexOf(state.xMetric);
+        const j = columns.indexOf(state.yMetric);
+        if (i < 0 || j < 0) {
+          return;
+        }
+
+        const extentMin = PADDING / 2;
+        const extentMax = cellSize - PADDING / 2;
+        const px0 = Math.min(x[i](state.x0), x[i](state.x1));
+        const px1 = Math.max(x[i](state.x0), x[i](state.x1));
+        const py0 = Math.min(y[j](state.y0), y[j](state.y1));
+        const py1 = Math.max(y[j](state.y0), y[j](state.y1));
+        const cx0 = Math.max(extentMin, px0);
+        const cx1 = Math.min(extentMax, px1);
+        const cy0 = Math.max(extentMin, py0);
+        const cy1 = Math.min(extentMax, py1);
+
+        if (cx1 <= cx0 || cy1 <= cy0) {
+          return;
+        }
+
+        activeKey = cellKey(i, j);
+        cell.each(function (d) {
+          if (d[0] !== i || d[1] !== j) {
+            d3.select(this).call(
+              brush.move as (
+                sel: d3.Selection<SVGGElement, unknown, null, undefined>,
+                s: null,
+              ) => void,
+              null,
+            );
+          }
+        });
+        cell.filter((d) => d[0] === i && d[1] === j).each(function () {
           d3.select(this).call(
             brush.move as (
               sel: d3.Selection<SVGGElement, unknown, null, undefined>,
-              s: null,
+              s: [[number, number], [number, number]],
             ) => void,
-            null,
+            [
+              [cx0, cy0],
+              [cx1, cy1],
+            ],
           );
-        }
-      });
-      cell.filter((d) => d[0] === i && d[1] === j).each(function () {
-        d3.select(this).call(
-          brush.move as (
-            sel: d3.Selection<SVGGElement, unknown, null, undefined>,
-            s: [[number, number], [number, number]],
-          ) => void,
-          [
-            [cx0, cy0],
-            [cx1, cy1],
-          ],
-        );
-      });
-      pending = { x0: cx0, y0: cy0, x1: cx1, y1: cy1, i, j };
-      applyHighlight();
+        });
+        pending = { x0: cx0, y0: cy0, x1: cx1, y1: cy1, i, j };
+        applyHighlight();
+      } finally {
+        queueMicrotask(() => {
+          syncingFromParent = false;
+        });
+      }
     };
 
-    if (brushState) {
-      restoring = true;
-      restoreBrush(brushState);
-      restoring = false;
-    }
-
-    cleanup = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-    };
+    chartRef.current = { restoreBrush, dispose: () => {} };
 
     const labelX = PADDING / 2 + 4;
     const labelY = PADDING / 2 + 4;
@@ -336,8 +390,22 @@ export function ScatterPlot({
           .text(`in ${meta.unit}`);
       });
 
-    return () => cleanup();
-  }, [records, columns, size, onSelect, onBrushChange, brushState]);
+    restoreBrush(brushStateRef.current);
+
+    const dispose = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+    chartRef.current = { restoreBrush, dispose };
+
+    return () => {
+      dispose();
+      chartRef.current = null;
+    };
+  }, [records, columns, size]);
+
+  useEffect(() => {
+    chartRef.current?.restoreBrush(brushState);
+  }, [brushState]);
 
   return (
     <div className='chart-wrap splom'>

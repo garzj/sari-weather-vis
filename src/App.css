@@ -340,6 +340,49 @@
   align-items: center;
 }
 
+.weather-title-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  min-height: 26px;
+  padding-right: 58px;
+}
+
+.weather-title-row .tile-title {
+  margin: 0;
+}
+
+.weather-sync-apply {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.weather-sync-apply.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.weather-sync-apply:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 .weather-controls {
   flex: 1 1 0;
   min-width: 0;

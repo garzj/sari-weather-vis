@@ -4,13 +4,19 @@ import { useDataset } from './hooks/useDataset';
 import { TopLeftCard } from './components/TopLeftCard';
 import { OptionsCard } from './components/OptionsCard';
 import { AustriaMap } from './components/charts/AustriaMap';
-import { ScatterPlot, type SplomBrushState } from './components/charts/ScatterPlot';
+import { ScatterPlot } from './components/charts/ScatterPlot';
 import { LineChart } from './components/charts/LineChart';
 import { WeatherAnalysis } from './components/charts/WeatherAnalysis';
 import { DEFAULT_OPTIONS, type ChartOptions } from './appTypes';
 import { ALL_STATES, type MetricId } from './data/metrics';
 import { mergeByWeek } from './data/aggregate';
 import { fetchCurrentWeekWeather } from './data/risk';
+import {
+  brushFromWeather,
+  clampWeatherFromBrush,
+  isWeatherBrush,
+  type SplomBrushState,
+} from './data/brushWeather';
 import { AGE_GROUPS, AGE_LABELS, type AgeGroup } from './data/age';
 import { recordsForAgeGroup } from './data/load';
 import { toDateInput, fromDateInput } from './utils/date';
@@ -31,6 +37,7 @@ function App() {
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [splomBrush, setSplomBrush] = useState<SplomBrushState | null>(null);
+  const [plotTouched, setPlotTouched] = useState(false);
 
   const fromDate = useMemo(
     () => from ?? DEFAULT_FROM,
@@ -73,6 +80,7 @@ function App() {
   const clearBrush = useCallback(() => {
     setSelection(null);
     setSplomBrush(null);
+    setPlotTouched(false);
   }, []);
 
   const handleStateChange = useCallback((s: string | null) => {
@@ -108,42 +116,60 @@ function App() {
       return { ...o, line: { enabled } };
     });
 
-  const patchWeather = (patch: Partial<ChartOptions['weather']>) =>
-    setOptions((o) => ({ ...o, weather: { ...o.weather, ...patch } }));
+  const patchWeather = useCallback((patch: Partial<ChartOptions['weather']>) => {
+    setOptions((o) => {
+      const weather = { ...o.weather, ...patch };
+      setSplomBrush(brushFromWeather(weather));
+      setPlotTouched(false);
+      return { ...o, weather };
+    });
+  }, []);
 
   const handleSelect = useCallback((recs: WeekRecord[] | null) => {
     setSelection(recs && recs.length ? recs : null);
   }, []);
 
-  const handleBrushChange = useCallback((state: SplomBrushState | null) => {
+  const handlePlotBrush = useCallback((state: SplomBrushState | null) => {
     setSplomBrush(state);
+    setPlotTouched(true);
   }, []);
 
-  const loadCurrentWeekWeather = useCallback(async (state: string | null) => {
-    setWeatherFetching(true);
-    setWeatherError(null);
-    try {
-      const w = await fetchCurrentWeekWeather(state ?? ALL_STATES);
-      setOptions((o) => ({ ...o, weather: { ...o.weather, ...w } }));
-    } catch {
-      setWeatherError('Could not fetch weather');
-    } finally {
-      setWeatherFetching(false);
-    }
-  }, []);
+  const showWeatherSyncApply = plotTouched;
 
-  const handleApplyWeatherFilter = useCallback(() => {
-    const { temperature, humidity, tempTolerance, humidityTolerance } =
-      options.weather;
-    setSplomBrush({
-      xMetric: 'temperature',
-      yMetric: 'humidity',
-      x0: temperature - tempTolerance,
-      x1: temperature + tempTolerance,
-      y0: humidity - humidityTolerance,
-      y1: humidity + humidityTolerance,
+  const syncWeatherFromBrush = useCallback(() => {
+    setOptions((o) => {
+      const weather =
+        splomBrush && isWeatherBrush(splomBrush)
+          ? clampWeatherFromBrush(splomBrush, o.weather)
+          : o.weather;
+      setSplomBrush(brushFromWeather(weather));
+      setPlotTouched(false);
+      return { ...o, weather };
     });
-  }, [options.weather]);
+  }, [splomBrush]);
+
+  const loadCurrentWeekWeather = useCallback(
+    async (state: string | null, updateBrush = true) => {
+      setWeatherFetching(true);
+      setWeatherError(null);
+      try {
+        const w = await fetchCurrentWeekWeather(state ?? ALL_STATES);
+        setOptions((o) => {
+          const weather = { ...o.weather, ...w };
+          if (updateBrush) {
+            setSplomBrush(brushFromWeather(weather));
+            setPlotTouched(false);
+          }
+          return { ...o, weather };
+        });
+      } catch {
+        setWeatherError('Could not fetch weather');
+      } finally {
+        setWeatherFetching(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -218,8 +244,9 @@ function App() {
         <WeatherAnalysis
           params={options.weather}
           onChange={patchWeather}
-          onFetchWeek={() => loadCurrentWeekWeather(selectedState)}
-          onApplyFilter={handleApplyWeatherFilter}
+          onFetchWeek={() => loadCurrentWeekWeather(selectedState, true)}
+          showSyncApply={showWeatherSyncApply}
+          onSyncApply={syncWeatherFromBrush}
           fetching={weatherFetching}
           error={weatherError}
         />
@@ -232,7 +259,7 @@ function App() {
               columns={options.scatter.columns}
               onSelect={handleSelect}
               brushState={splomBrush}
-              onBrushChange={handleBrushChange}
+              onPlotBrush={handlePlotBrush}
             />
           </div>
         </section>
