@@ -15,6 +15,7 @@ import { useMeasure } from "../../hooks/useMeasure";
 interface Props {
   records: WeekRecord[];
   enabled: MetricId[];
+  showEmpty?: boolean;
 }
 
 interface Tooltip {
@@ -38,6 +39,7 @@ const TICK_H = 3;
 const TICK_W_HOVER = 12;
 const TICK_H_HOVER = 3.75;
 const LINE_HIT_WIDTH = 18;
+const SARI_THRESHOLD_PPM = 30;
 
 function isSari(id: MetricId): id is SariMetricId {
   return SARI_METRICS.includes(id as SariMetricId);
@@ -84,7 +86,7 @@ function groupExtents(
   return { min, max };
 }
 
-export function LineChart({ records, enabled }: Props) {
+export function LineChart({ records, enabled, showEmpty = false }: Props) {
   const [wrapRef, size] = useMeasure<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
@@ -92,7 +94,10 @@ export function LineChart({ records, enabled }: Props) {
   useEffect(() => {
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
-    if (!size.width || !size.height || records.length === 0) return;
+    if (!size.width || !size.height || records.length === 0) {
+      setTooltip(null);
+      return;
+    }
 
     const width = size.width;
     const height = size.height;
@@ -132,7 +137,52 @@ export function LineChart({ records, enabled }: Props) {
       const active = ids.filter((id) => enabled.includes(id));
       if (active.length === 0) continue;
       const ext = groupExtents(records, active);
-      if (ext) sharedScale.set(group, ext);
+      if (!ext) continue;
+      if (group === "sari") {
+        sharedScale.set(group, {
+          min: Math.min(ext.min, SARI_THRESHOLD_PPM),
+          max: Math.max(ext.max, SARI_THRESHOLD_PPM),
+        });
+      } else {
+        sharedScale.set(group, ext);
+      }
+    }
+
+    const sariScale =
+      sharedScale.get("sari") ??
+      (() => {
+        const ext = groupExtents(records, [...SARI_METRICS]);
+        if (!ext) return null;
+        return {
+          min: Math.min(ext.min, SARI_THRESHOLD_PPM),
+          max: Math.max(ext.max, SARI_THRESHOLD_PPM),
+        };
+      })();
+
+    if (sariScale) {
+      const span = sariScale.max - sariScale.min || 1;
+      const yThreshold = y((SARI_THRESHOLD_PPM - sariScale.min) / span);
+      const threshold = g
+        .append("g")
+        .attr("class", "line-threshold")
+        .attr("pointer-events", "none");
+      threshold
+        .append("line")
+        .attr("x1", 0)
+        .attr("x2", innerW)
+        .attr("y1", yThreshold)
+        .attr("y2", yThreshold)
+        .attr("stroke", "#d32f2f")
+        .attr("stroke-width", 1.5);
+      threshold
+        .append("text")
+        .attr("x", innerW - 2)
+        .attr("y", yThreshold - 5)
+        .attr("text-anchor", "end")
+        .attr("fill", "#d32f2f")
+        .attr("font-size", 10)
+        .attr("font-weight", 600)
+        .text("30 ppm infection cases");
     }
 
     const line = d3
@@ -293,6 +343,9 @@ export function LineChart({ records, enabled }: Props) {
   return (
     <div className="chart-wrap" ref={wrapRef}>
       <svg ref={svgRef} width={size.width} height={size.height} />
+      {showEmpty && (
+        <p className="chart-empty">No data selected.</p>
+      )}
       {tooltip &&
         createPortal(
           <div

@@ -36,8 +36,11 @@ function App() {
   const [selection, setSelection] = useState<WeekRecord[] | null>(null);
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
-  const [splomBrush, setSplomBrush] = useState<SplomBrushState | null>(null);
+  const [weatherBrush, setWeatherBrush] = useState<SplomBrushState | null>(null);
+  const [plotBrush, setPlotBrush] = useState<SplomBrushState | null>(null);
   const [plotTouched, setPlotTouched] = useState(false);
+
+  const activeBrush = plotTouched ? plotBrush : weatherBrush;
 
   const fromDate = useMemo(
     () => from ?? DEFAULT_FROM,
@@ -79,8 +82,15 @@ function App() {
 
   const clearBrush = useCallback(() => {
     setSelection(null);
-    setSplomBrush(null);
+    setWeatherBrush(null);
+    setPlotBrush(null);
     setPlotTouched(false);
+  }, []);
+
+  const clearPlotFilter = useCallback(() => {
+    setSelection(null);
+    setPlotBrush(null);
+    setPlotTouched(true);
   }, []);
 
   const handleStateChange = useCallback((s: string | null) => {
@@ -100,13 +110,14 @@ function App() {
     clearBrush();
   }, [clearBrush]);
 
-  const lineRecords = useMemo(
-    () =>
-      dataset && ageContext
-        ? mergeByWeek(selection ?? filtered, dataset.population, ageContext)
-        : [],
-    [selection, filtered, dataset, ageContext],
-  );
+  const lineRecords = useMemo(() => {
+    if (!dataset || !ageContext) return [];
+    const source = activeBrush === null ? filtered : (selection ?? []);
+    return mergeByWeek(source, dataset.population, ageContext);
+  }, [activeBrush, selection, filtered, dataset, ageContext]);
+
+  const lineBrushEmpty =
+    activeBrush !== null && selection !== null && selection.length === 0;
 
   const toggleLine = (id: MetricId) =>
     setOptions((o) => {
@@ -119,18 +130,18 @@ function App() {
   const patchWeather = useCallback((patch: Partial<ChartOptions['weather']>) => {
     setOptions((o) => {
       const weather = { ...o.weather, ...patch };
-      setSplomBrush(brushFromWeather(weather));
+      setWeatherBrush(brushFromWeather(weather));
       setPlotTouched(false);
       return { ...o, weather };
     });
   }, []);
 
   const handleSelect = useCallback((recs: WeekRecord[] | null) => {
-    setSelection(recs && recs.length ? recs : null);
+    setSelection(recs);
   }, []);
 
   const handlePlotBrush = useCallback((state: SplomBrushState | null) => {
-    setSplomBrush(state);
+    setPlotBrush(state);
     setPlotTouched(true);
   }, []);
 
@@ -139,14 +150,15 @@ function App() {
   const syncWeatherFromBrush = useCallback(() => {
     setOptions((o) => {
       const weather =
-        splomBrush && isWeatherBrush(splomBrush)
-          ? clampWeatherFromBrush(splomBrush, o.weather)
+        plotBrush && isWeatherBrush(plotBrush)
+          ? clampWeatherFromBrush(plotBrush, o.weather)
           : o.weather;
-      setSplomBrush(brushFromWeather(weather));
+      setWeatherBrush(brushFromWeather(weather));
+      setPlotBrush(null);
       setPlotTouched(false);
       return { ...o, weather };
     });
-  }, [splomBrush]);
+  }, [plotBrush]);
 
   const loadCurrentWeekWeather = useCallback(
     async (state: string | null, updateBrush = true) => {
@@ -157,7 +169,7 @@ function App() {
         setOptions((o) => {
           const weather = { ...o.weather, ...w };
           if (updateBrush) {
-            setSplomBrush(brushFromWeather(weather));
+            setWeatherBrush(brushFromWeather(weather));
             setPlotTouched(false);
           }
           return { ...o, weather };
@@ -233,10 +245,14 @@ function App() {
 
       <section className='tile tile-chart tile-line'>
         <h2 className='tile-title'>
-          Line graph{selection ? ' — brushed weeks' : ''}
+          Line graph{activeBrush ? ' — brushed weeks' : ''}
         </h2>
         <div className='tile-body'>
-          <LineChart records={lineRecords} enabled={options.line.enabled} />
+          <LineChart
+            records={lineRecords}
+            enabled={options.line.enabled}
+            showEmpty={lineBrushEmpty}
+          />
         </div>
       </section>
 
@@ -252,13 +268,28 @@ function App() {
         />
 
         <section className='tile tile-chart tile-scatter'>
-          <h2 className='tile-title'>Weekly cases vs weather — brush to filter</h2>
+          <div
+            className={`tile-title-row${activeBrush ? ' tile-title-row--with-action' : ''}`}
+          >
+            <h2 className='tile-title'>
+              Weekly cases vs weather — brush to filter
+            </h2>
+            {activeBrush && (
+              <button
+                type='button'
+                className='tile-title-action'
+                onClick={clearPlotFilter}
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <div className='tile-body'>
             <ScatterPlot
               records={filtered}
               columns={options.scatter.columns}
               onSelect={handleSelect}
-              brushState={splomBrush}
+              brushState={activeBrush}
               onPlotBrush={handlePlotBrush}
             />
           </div>

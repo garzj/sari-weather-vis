@@ -59,11 +59,11 @@ export function WeatherAnalysis({
 }: Props) {
   return (
     <section className='tile tile-weather'>
-      <div className='weather-title-row'>
+      <div className='weather-title-row tile-title-row tile-title-row--with-action'>
         <h2 className='tile-title'>Week&apos;s weather</h2>
         <button
           type='button'
-          className={`weather-sync-apply${showSyncApply ? '' : ' is-hidden'}`}
+          className={`tile-title-action${showSyncApply ? '' : ' is-hidden'}`}
           onClick={onSyncApply}
           tabIndex={showSyncApply ? 0 : -1}
           aria-hidden={!showSyncApply}

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import type { WeekRecord } from '../../data/load';
 import { METRICS, type MetricId } from '../../data/metrics';
-import { asWeatherBrush, type SplomBrushState } from '../../data/brushWeather';
+import type { SplomBrushState } from '../../data/brushWeather';
 import { useMeasure } from '../../hooks/useMeasure';
 import {
   seasonOf,
@@ -192,15 +192,14 @@ export function ScatterPlot({
       py0: number,
       px1: number,
       py1: number,
-    ): SplomBrushState =>
-      asWeatherBrush({
-        xMetric: columns[i],
-        yMetric: columns[j],
-        x0: Math.min(x[i].invert(px0), x[i].invert(px1)),
-        x1: Math.max(x[i].invert(px0), x[i].invert(px1)),
-        y0: Math.min(y[j].invert(py0), y[j].invert(py1)),
-        y1: Math.max(y[j].invert(py0), y[j].invert(py1)),
-      });
+    ): SplomBrushState => ({
+      xMetric: columns[i],
+      yMetric: columns[j],
+      x0: Math.min(x[i].invert(px0), x[i].invert(px1)),
+      x1: Math.max(x[i].invert(px0), x[i].invert(px1)),
+      y0: Math.min(y[j].invert(py0), y[j].invert(py1)),
+      y1: Math.max(y[j].invert(py0), y[j].invert(py1)),
+    });
 
     let activeKey: string | null = null;
     let syncingFromParent = false;
