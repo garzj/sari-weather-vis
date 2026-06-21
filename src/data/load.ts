@@ -1,12 +1,9 @@
 import { dsvFormat, csvParse } from "d3";
 import type { MetricId } from "./metrics";
 
-// one ISO week of merged weather + sari data for a state
 export interface WeekRecord {
-  // monday of the iso week, used for the time axis and seasons
   date: Date;
   state: string;
-  // unique key, "<state>|<year>-W<week>"
   key: string;
   values: Partial<Record<MetricId, number>>;
 }
@@ -19,9 +16,8 @@ export interface Dataset {
 
 const BASE = import.meta.env.BASE_URL;
 
-// location_id -> federal state. the federal_state column was removed from
-// weather-locations.csv, but the row order/coordinates are unchanged, so the
-// mapping is recovered by id.
+// weather-locations.csv no longer carries the federal_state column; the row
+// order is unchanged, so states are recovered by location_id.
 const LOCATION_STATE: Record<string, string> = {
   "0": "BGL",
   "1": "KTN",
@@ -34,7 +30,6 @@ const LOCATION_STATE: Record<string, string> = {
   "8": "W",
 };
 
-// weather csv column -> metric, with an optional unit conversion factor
 const WEATHER_COLS: { col: string; id: MetricId; scale?: number }[] = [
   { col: "temperature_2m_mean (°C)", id: "temperature" },
   { col: "temperature_2m_max (°C)", id: "tempMax" },
@@ -51,7 +46,6 @@ const WEATHER_COLS: { col: string; id: MetricId; scale?: number }[] = [
 
 type SariKey = "covid" | "influenza" | "aufnahmen";
 
-// iso-8601 calendar week and week-year, matches austrian "KW"
 function isoWeek(date: Date): { year: number; week: number } {
   const d = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
@@ -65,7 +59,6 @@ function isoWeek(date: Date): { year: number; week: number } {
   return { year: d.getUTCFullYear(), week };
 }
 
-// monday (UTC) of the given iso week, used as the week's representative date
 function isoWeekStart(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4));
   const dayNum = jan4.getUTCDay() || 7;
@@ -76,7 +69,6 @@ function isoWeekStart(year: number, week: number): Date {
 
 const weekKey = (year: number, week: number) => `${year}-W${week}`;
 
-// parse a sari "KW" label like "19. KW 2023"
 function parseKw(label: string): { year: number; week: number } | null {
   const m = label.match(/(\d+)\.\s*KW\s*(\d{4})/);
   if (!m) return null;
@@ -104,7 +96,6 @@ export async function loadDataset(): Promise<Dataset> {
     fetchText(`${BASE}data/weather-data.csv`),
   ]);
 
-  // sum sari weekly counts per state and iso week
   const sariByKey = new Map<string, Record<SariKey, number>>();
   dsvFormat(";").parse(sariText, (row) => {
     const kw = parseKw(row.KW ?? "");
@@ -122,7 +113,6 @@ export async function loadDataset(): Promise<Dataset> {
     return null;
   });
 
-  // aggregate daily weather into iso weeks per state
   const weatherByKey = new Map<string, WeatherAgg>();
   csvParse(weatherText, (row) => {
     const state = LOCATION_STATE[String(row.location_id)];
@@ -158,7 +148,6 @@ export async function loadDataset(): Promise<Dataset> {
     return null;
   });
 
-  // build one record per state-week from the weather weeks
   const records: WeekRecord[] = [];
   let minDate = Infinity;
   let maxDate = -Infinity;

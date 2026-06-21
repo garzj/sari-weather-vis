@@ -1,9 +1,6 @@
 import type { WeekRecord } from "./load";
 import { METRICS, type MetricId } from "./metrics";
 
-// merge records that fall in the same week (across states) into one row:
-// sari counts are summed, weather metrics are averaged. used by the line chart
-// and weather analysis so multi-state selections collapse to one series.
 export function mergeByWeek(records: WeekRecord[]): WeekRecord[] {
   const groups = new Map<
     number,
@@ -44,7 +41,6 @@ export function mergeByWeek(records: WeekRecord[]): WeekRecord[] {
   return out;
 }
 
-// total of a sari metric per state, used to color the choropleth
 export function stateTotals(
   records: WeekRecord[],
   metric: MetricId

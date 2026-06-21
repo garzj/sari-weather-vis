@@ -7,7 +7,6 @@ interface State {
   loading: boolean;
 }
 
-// loads and parses the csv datasets once on mount
 export function useDataset(): State {
   const [state, setState] = useState<State>({
     dataset: null,

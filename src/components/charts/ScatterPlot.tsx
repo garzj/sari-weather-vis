@@ -13,7 +13,6 @@ import {
 interface Props {
   records: WeekRecord[];
   columns: MetricId[];
-  // brushed records become the global filter; null means "no brush / all"
   onSelect: (records: WeekRecord[] | null) => void;
 }
 
@@ -21,7 +20,6 @@ interface Point {
   rec: WeekRecord;
   season: Season;
   values: Partial<Record<MetricId, number>>;
-  // pre-computed pixel position per column, NaN when missing
   cx: number[];
   cy: number[];
 }
@@ -53,7 +51,6 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       cy: [],
     }));
 
-    // x scale per column, y scales are flipped copies
     const x = columns.map((c) =>
       d3
         .scaleLinear()
@@ -65,7 +62,6 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       scale.copy().range([cellSize - PADDING / 2, PADDING / 2]),
     );
 
-    // pre-compute pixel positions once to avoid scale calls while brushing
     for (const p of points) {
       for (let c = 0; c < n; c++) {
         const v = p.values[columns[c]];
@@ -86,7 +82,6 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
 
     svg.attr('viewBox', [-PADDING, 0, width, width].join(' '));
 
-    // faint gridline axes across the matrix
     type LinScale = d3.ScaleLinear<number, number>;
     const axisX = d3
       .axisBottom<number>(x[0])
@@ -122,7 +117,6 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       .call((g) => g.selectAll('.tick line').attr('stroke', '#e3e5e9'))
       .call((g) => g.selectAll('.tick text').remove());
 
-    // one group per (i, j) column pair
     const pairs: [number, number][] = d3.cross(d3.range(n), d3.range(n));
     const cell = svg
       .append('g')
@@ -161,14 +155,11 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
       .attr('r', 3)
       .attr('fill-opacity', 0.6)
       .attr('fill', (p) => color(p.season))
-      // skip hit-testing thousands of nodes while brushing
       .attr('pointer-events', 'none');
 
-    // track active cell by [i, j] so only one brush is live
     const cellKey = (i: number, j: number) => `${i}-${j}`;
     let activeKey: string | null = null;
 
-    // coalesce brush events into one highlight per frame
     let rafId = 0;
     let pending: {
       x0: number;

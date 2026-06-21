@@ -1,10 +1,7 @@
-// registry of every data attribute shown in the app
 export type MetricId =
-  // sari metrics, weekly counts
   | "covid"
   | "influenza"
   | "aufnahmen"
-  // weather metrics, weekly averages of the daily source
   | "temperature"
   | "tempMax"
   | "tempMin"
@@ -21,12 +18,9 @@ export type MetricSource = "sari" | "weather";
 
 export interface MetricMeta {
   id: MetricId;
-  // short label for legends and dropdowns
   label: string;
-  // unit shown in tooltips and axis titles
   unit: string;
   source: MetricSource;
-  // line and legend color
   color: string;
 }
 
@@ -131,10 +125,8 @@ export const METRICS: Record<MetricId, MetricMeta> = {
   },
 };
 
-// sari metrics shown in the line chart options
 export const SARI_METRICS: MetricId[] = ["covid", "influenza", "aufnahmen"];
 
-// weather metrics shown in the line chart options
 export const WEATHER_METRICS: MetricId[] = [
   "temperature",
   "tempMax",
@@ -149,10 +141,8 @@ export const WEATHER_METRICS: MetricId[] = [
   "sunshine",
 ];
 
-// lines toggleable in the line chart: sari first, then every weather field
 export const LINE_METRICS: MetricId[] = [...SARI_METRICS, ...WEATHER_METRICS];
 
-// fixed columns of the brushable scatterplot matrix
 export const SCATTER_METRICS: MetricId[] = [
   "aufnahmen",
   "temperature",

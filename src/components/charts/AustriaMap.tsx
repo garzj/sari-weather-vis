@@ -7,14 +7,12 @@ import { METRICS, type MetricId } from "../../data/metrics";
 import { useMeasure } from "../../hooks/useMeasure";
 
 interface Props {
-  // time-range filtered records for every state
   records: WeekRecord[];
   metric: MetricId;
   selectedState: string | null;
   onSelectState: (state: string | null) => void;
 }
 
-// geojson feature name -> our federal state code
 const NAME_TO_STATE: Record<string, string> = {
   Wien: "W",
   Burgenland: "BGL",
@@ -66,9 +64,16 @@ export function AustriaMap({
       .scaleSequential(d3.interpolateBlues)
       .domain([0, max || 1]);
 
+    const pad = 6;
     const projection = d3
       .geoMercator()
-      .fitSize([size.width, size.height], geo);
+      .fitExtent(
+        [
+          [pad, pad],
+          [Math.max(pad * 2, size.width - pad), Math.max(pad * 2, size.height - pad)],
+        ],
+        geo
+      );
     const path = d3.geoPath(projection);
 
     svg
@@ -101,8 +106,10 @@ export function AustriaMap({
   }, [geo, records, metric, selectedState, size, onSelectState]);
 
   return (
-    <div className="chart-wrap map-wrap" ref={wrapRef}>
-      <svg ref={svgRef} width={size.width} height={size.height} />
+    <div className="map-wrap">
+      <div className="map-svg-area" ref={wrapRef}>
+        <svg ref={svgRef} width={size.width} height={size.height} />
+      </div>
       <div className="map-caption">
         {hover
           ? `${hover.name}: ${Math.round(hover.value)} ${METRICS[metric].unit}`

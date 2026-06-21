@@ -1,16 +1,25 @@
-/* desktop grid: fixed left column + 3 columns of equal tiles over two rows */
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr 1fr 1fr;
+  grid-template-columns: 300px 1fr 0.75fr;
   grid-template-rows: 1fr 1fr;
   grid-template-areas:
-    "intro   upload  map      scatter"
-    "options line    weather  empty";
-  gap: 12px;
-  padding: 12px;
+    'intro map right'
+    'options line right';
+  gap: 1px;
+  background: var(--border);
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+}
+
+.right-col {
+  grid-area: right;
+  display: grid;
+  grid-template-rows: 1.75fr 0.85fr;
+  gap: 1px;
+  background: var(--border);
+  min-width: 0;
+  min-height: 0;
 }
 
 .tile-intro {
@@ -19,43 +28,26 @@
 .tile-options {
   grid-area: options;
 }
-.tile-upload {
-  grid-area: upload;
-}
 .tile-map {
   grid-area: map;
-}
-.tile-scatter {
-  grid-area: scatter;
 }
 .tile-line {
   grid-area: line;
 }
-.tile-weather {
-  grid-area: weather;
-}
-.tile-empty {
-  grid-area: empty;
-}
 
-/* card shell shared by every tile */
 .tile {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 16px 18px;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
-/* tiles whose content (lists) can exceed the height */
 .tile-intro,
-.tile-options,
-.tile-upload {
+.tile-options {
   overflow-y: auto;
 }
 
@@ -66,18 +58,12 @@
   color: var(--text);
 }
 
-/* charts fill the remaining tile space */
 .tile-body {
   position: relative;
   flex: 1 1 0;
   min-height: 0;
 }
 
-.tile-empty {
-  border-style: dashed;
-}
-
-/* intro tile */
 .app-title {
   font-size: 1.3rem;
   font-weight: 650;
@@ -117,7 +103,9 @@
   color: var(--accent);
   cursor: pointer;
   overflow: hidden;
-  transition: background-color 0.3s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.15s ease;
 }
 
 .theme-toggle:hover {
@@ -132,7 +120,6 @@
   justify-content: center;
 }
 
-/* options tile (line graph checkboxes) */
 .options-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -170,7 +157,6 @@
   user-select: none;
 }
 
-/* fields and inputs */
 .field {
   display: flex;
   flex-direction: column;
@@ -192,7 +178,9 @@
   background: var(--input-bg);
   color: var(--text);
   width: 100%;
-  transition: border-color 0.15s ease, background-color 0.3s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.3s ease;
 }
 
 .field input:hover {
@@ -204,18 +192,36 @@
   border-color: var(--accent);
 }
 
-.date-row {
+.tile-dates {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
-.date-row input {
+.tile-dates input {
   flex: 1;
   min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.3s ease;
 }
 
-.date-row input::-webkit-calendar-picker-indicator {
+.tile-dates input:hover {
+  border-color: var(--border-strong);
+}
+
+.tile-dates input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tile-dates input::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.65;
 }
@@ -224,74 +230,30 @@
   color: var(--muted);
 }
 
-/* upload tile */
-.upload-drop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 18px;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: 10px;
-  margin-bottom: 14px;
-}
-
-.upload-hint {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.upload-btn {
-  padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--input-bg);
-  color: var(--muted);
-  font-size: 0.82rem;
-  cursor: not-allowed;
-}
-
-.upload-files {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.upload-file {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-}
-
-.upload-file-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.upload-file-note {
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-/* map tile */
 .map-wrap {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+}
+
+.map-svg-area {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+}
+
+.map-svg-area svg {
+  display: block;
 }
 
 .map-state {
   stroke: var(--panel);
   stroke-width: 1;
   cursor: pointer;
-  transition: fill-opacity 0.15s ease, stroke 0.15s ease;
+  transition:
+    fill-opacity 0.15s ease,
+    stroke 0.15s ease;
 }
 
 .map-state:hover {
@@ -311,18 +273,13 @@
 }
 
 .map-caption {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  padding: 4px 6px;
+  flex-shrink: 0;
+  padding: 6px 6px 2px;
   font-size: 0.74rem;
   color: var(--muted);
   text-align: center;
-  pointer-events: none;
 }
 
-/* weather analysis tile */
 .weather-body {
   flex: 1 1 0;
   min-height: 0;
@@ -371,7 +328,6 @@
   margin: 0;
 }
 
-/* sliders */
 .slider-field .field-label {
   display: flex;
   justify-content: space-between;
@@ -385,7 +341,7 @@
   letter-spacing: 0;
 }
 
-.slider-field input[type="range"] {
+.slider-field input[type='range'] {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
@@ -397,13 +353,13 @@
   cursor: pointer;
 }
 
-.slider-field input[type="range"]:hover,
-.slider-field input[type="range"]:focus {
+.slider-field input[type='range']:hover,
+.slider-field input[type='range']:focus {
   border: none;
   outline: none;
 }
 
-.slider-field input[type="range"]::-webkit-slider-thumb {
+.slider-field input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 18px;
@@ -414,7 +370,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-.slider-field input[type="range"]::-moz-range-thumb {
+.slider-field input[type='range']::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -432,7 +388,9 @@
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .risk-fetch:hover {
@@ -466,7 +424,6 @@
   font-size: 0.78rem;
 }
 
-/* charts */
 .chart-wrap {
   position: relative;
   width: 100%;
@@ -486,7 +443,6 @@
   stroke: var(--chart-ink);
 }
 
-/* scatterplot matrix */
 .splom {
   display: flex;
   align-items: center;
@@ -535,7 +491,6 @@
   border-radius: 3px;
 }
 
-/* tooltip */
 .tooltip {
   position: absolute;
   pointer-events: none;
@@ -564,7 +519,6 @@
   color: var(--muted);
 }
 
-/* status (loading / error) */
 .status {
   display: flex;
   align-items: center;

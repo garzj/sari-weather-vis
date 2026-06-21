@@ -3,7 +3,6 @@ import "./App.css";
 import { useDataset } from "./hooks/useDataset";
 import { TopLeftCard } from "./components/TopLeftCard";
 import { OptionsCard } from "./components/OptionsCard";
-import { UploadCard } from "./components/UploadCard";
 import { AustriaMap } from "./components/charts/AustriaMap";
 import { ScatterPlot } from "./components/charts/ScatterPlot";
 import { LineChart } from "./components/charts/LineChart";
@@ -12,9 +11,9 @@ import { DEFAULT_OPTIONS, type ChartOptions } from "./appTypes";
 import { ALL_STATES, type MetricId } from "./data/metrics";
 import { mergeByWeek } from "./data/aggregate";
 import { fetchTodayWeather } from "./data/risk";
+import { toDateInput, fromDateInput } from "./utils/date";
 import type { WeekRecord } from "./data/load";
 
-// metric used to color the choropleth
 const MAP_METRIC: MetricId = "influenza";
 
 function App() {
@@ -37,7 +36,6 @@ function App() {
     [to, dataset]
   );
 
-  // records in the time range, every state (drives the map)
   const rangeRecords = useMemo(() => {
     if (!dataset) return [];
     const lo = fromDate.getTime();
@@ -47,13 +45,11 @@ function App() {
     );
   }, [dataset, fromDate, toDate]);
 
-  // range + selected state (drives the scatterplot and weather analysis)
   const filtered = useMemo(() => {
     if (!selectedState) return rangeRecords;
     return rangeRecords.filter((r) => r.state === selectedState);
   }, [rangeRecords, selectedState]);
 
-  // changing the filter invalidates a brush made against the old data
   const handleStateChange = useCallback((s: string | null) => {
     setSelectedState(s);
     setSelection(null);
@@ -67,13 +63,11 @@ function App() {
     setSelection(null);
   }, []);
 
-  // line chart: brushed subset (or everything), merged to one row per week
   const lineRecords = useMemo(
     () => mergeByWeek(selection ?? filtered),
     [selection, filtered]
   );
 
-  // weather analysis: one row per week over the current filter
   const weatherRecords = useMemo(() => mergeByWeek(filtered), [filtered]);
 
   const toggleLine = (id: MetricId) =>
@@ -117,34 +111,31 @@ function App() {
     <div className="layout">
       <TopLeftCard />
 
-      <UploadCard
-        from={fromDate}
-        to={toDate}
-        minDate={dataset.minDate}
-        maxDate={dataset.maxDate}
-        onFromChange={handleFromChange}
-        onToChange={handleToChange}
-      />
-
       <section className="tile tile-map">
         <h2 className="tile-title">Austria — click a state to filter</h2>
+        <div className="tile-dates">
+          <input
+            type="date"
+            value={toDateInput(fromDate)}
+            min={toDateInput(dataset.minDate)}
+            max={toDateInput(toDate)}
+            onChange={(e) => handleFromChange(fromDateInput(e.target.value))}
+          />
+          <span className="date-sep">–</span>
+          <input
+            type="date"
+            value={toDateInput(toDate)}
+            min={toDateInput(fromDate)}
+            max={toDateInput(dataset.maxDate)}
+            onChange={(e) => handleToChange(fromDateInput(e.target.value))}
+          />
+        </div>
         <div className="tile-body">
           <AustriaMap
             records={rangeRecords}
             metric={MAP_METRIC}
             selectedState={selectedState}
             onSelectState={handleStateChange}
-          />
-        </div>
-      </section>
-
-      <section className="tile tile-chart tile-scatter">
-        <h2 className="tile-title">Scatterplot — brush to filter</h2>
-        <div className="tile-body">
-          <ScatterPlot
-            records={filtered}
-            columns={options.scatter.columns}
-            onSelect={handleSelect}
           />
         </div>
       </section>
@@ -160,16 +151,27 @@ function App() {
         </div>
       </section>
 
-      <WeatherAnalysis
-        records={weatherRecords}
-        params={options.weather}
-        onChange={patchWeather}
-        onUseToday={() => loadTodayWeather(selectedState)}
-        fetching={weatherFetching}
-        error={weatherError}
-      />
+      <div className="right-col">
+        <section className="tile tile-chart tile-scatter">
+          <h2 className="tile-title">Scatterplot — brush to filter</h2>
+          <div className="tile-body">
+            <ScatterPlot
+              records={filtered}
+              columns={options.scatter.columns}
+              onSelect={handleSelect}
+            />
+          </div>
+        </section>
 
-      <section className="tile tile-empty" />
+        <WeatherAnalysis
+          records={weatherRecords}
+          params={options.weather}
+          onChange={patchWeather}
+          onUseToday={() => loadTodayWeather(selectedState)}
+          fetching={weatherFetching}
+          error={weatherError}
+        />
+      </div>
     </div>
   );
 }

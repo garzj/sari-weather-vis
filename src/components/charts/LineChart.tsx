@@ -43,10 +43,8 @@ export function LineChart({ records, enabled }: Props) {
       .domain(d3.extent(records, (d) => d.date) as [Date, Date])
       .range([0, innerW]);
 
-    // series are min-max normalized so different units share one axis
     const y = d3.scaleLinear().domain([0, 1]).range([innerH, 0]);
 
-    // time axis on the bottom, bare left axis since values are normalized
     g.append("g")
       .attr("transform", `translate(0,${innerH})`)
       .call(d3.axisBottom<Date>(x).ticks(Math.max(2, Math.floor(innerW / 100))))
@@ -96,7 +94,6 @@ export function LineChart({ records, enabled }: Props) {
         .attr("d", line)
         .style("cursor", "pointer");
 
-      // wider transparent path makes the thin line easy to hover
       g.append("path")
         .datum(normPoints)
         .attr("fill", "none")

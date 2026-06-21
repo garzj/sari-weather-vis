@@ -5,7 +5,6 @@ export interface Size {
   height: number;
 }
 
-// tracks an element's rendered size via ResizeObserver
 export function useMeasure<T extends HTMLElement>(): [
   React.RefObject<T | null>,
   Size
@@ -19,7 +18,6 @@ export function useMeasure<T extends HTMLElement>(): [
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      // round to whole pixels and skip no-op updates
       const width = Math.round(entry.contentRect.width);
       const height = Math.round(entry.contentRect.height);
       setSize((prev) =>

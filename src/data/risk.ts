@@ -6,13 +6,11 @@ export interface WeatherParams {
   humidity: number;
 }
 
-// slider bounds, also used to clamp fetched values
 export const WEATHER_RANGES = {
   temperature: { min: -15, max: 35, step: 0.5 },
   humidity: { min: 0, max: 100, step: 1 },
 } as const;
 
-// a week counts as "similar" when both metrics are within this much of the input
 export const MATCH_TOLERANCE = {
   temperature: 3,
   humidity: 8,
@@ -23,7 +21,6 @@ function clamp(v: number, min: number, max: number, step: number) {
   return Math.max(min, Math.min(max, snapped));
 }
 
-// state capital coordinates, all states falls back to austria's center
 const STATE_COORDS: Record<string, [number, number]> = {
   [ALL_STATES]: [47.5162, 14.5501],
   W: [48.2082, 16.3738],
@@ -41,7 +38,6 @@ function mean(a: number[]): number {
   return a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 }
 
-// today's mean temperature and humidity for a state from the open-meteo forecast
 export async function fetchTodayWeather(
   stateId: string
 ): Promise<WeatherParams> {
@@ -71,16 +67,11 @@ export async function fetchTodayWeather(
 }
 
 export interface MatchResult {
-  // number of weeks in the current filter with similar weather
   matchedWeeks: number;
-  // total weeks considered
   totalWeeks: number;
-  // severe influenza cases summed over the matched weeks
   peopleAffected: number;
 }
 
-// count weeks whose weather is close to the inputs and the flu cases in them.
-// deliberately simple: a plain +-tolerance window, no weighting or scaling.
 export function matchWeeks(
   records: WeekRecord[],
   p: WeatherParams
