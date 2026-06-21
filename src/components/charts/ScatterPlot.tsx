@@ -247,13 +247,15 @@ export function ScatterPlot({ records, columns, onSelect }: Props) {
   }, [records, columns, size, onSelect]);
 
   return (
-    <div className='chart-wrap splom' ref={wrapRef}>
-      <svg ref={svgRef} width={size.width} height={size.height} />
-      <div className='legend'>
+    <div className='chart-wrap splom'>
+      <div className='splom-chart' ref={wrapRef}>
+        <svg ref={svgRef} width={size.width} height={size.height} />
+      </div>
+      <div className='splom-legend'>
         {SEASONS.map((s) => (
-          <span key={s} className='legend-item'>
+          <span key={s} className='splom-legend-item'>
             <span
-              className='legend-swatch'
+              className='splom-legend-swatch'
               style={{ background: SEASON_COLORS[s] }}
             />
             {s}
