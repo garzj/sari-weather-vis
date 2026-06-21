@@ -14,8 +14,6 @@ import { mergeByWeek } from './data/aggregate';
 import { fetchCurrentWeekWeather } from './data/risk';
 import {
   brushFromWeather,
-  clampWeatherFromBrush,
-  isWeatherBrush,
   type SplomBrushState,
 } from './data/brushWeather';
 import { AGE_GROUPS, AGE_LABELS, type AgeGroup } from './data/age';
@@ -155,18 +153,10 @@ function App() {
 
   const showWeatherSyncApply = plotTouched;
 
-  const syncWeatherFromBrush = useCallback(() => {
-    setOptions((o) => {
-      const weather =
-        plotBrush && isWeatherBrush(plotBrush)
-          ? clampWeatherFromBrush(plotBrush, o.weather)
-          : o.weather;
-      setWeatherBrush(brushFromWeather(weather));
-      setPlotBrush(null);
-      setPlotTouched(false);
-      return { ...o, weather };
-    });
-  }, [plotBrush]);
+  const applyWeatherBrush = useCallback(() => {
+    setPlotBrush(null);
+    setPlotTouched(false);
+  }, []);
 
   const loadCurrentWeekWeather = useCallback(
     async (state: string | null, updateBrush = true) => {
@@ -278,7 +268,7 @@ function App() {
           onChange={patchWeather}
           onFetchWeek={() => loadCurrentWeekWeather(selectedState, true)}
           showSyncApply={showWeatherSyncApply}
-          onSyncApply={syncWeatherFromBrush}
+          onSyncApply={applyWeatherBrush}
           fetching={weatherFetching}
           error={weatherError}
         />
